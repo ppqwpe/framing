@@ -3,21 +3,23 @@ from pathlib import Path
 import dataclasses,json,sys,types,unittest,tempfile,subprocess,shutil,re,os
 HERE=Path(__file__).resolve().parent
 APP=Path(__file__).resolve().parents[1]/'framing'/'core.py'
+LAUNCHER=Path(__file__).resolve().parents[2]/'Framing.bat'
 source=APP.read_text(encoding='utf-8')
 m=types.ModuleType('framing_release_test');m.__file__=str(APP);sys.modules[m.__name__]=m
 exec(compile(source,str(APP),'exec'),m.__dict__)
 baseline=json.loads((HERE/'compat_baseline.json').read_text(encoding='utf-8'))
 class ReleaseTests(unittest.TestCase):
- @unittest.skipUnless(os.name=='nt','Windows batch launcher')
+ # Framing.bat 은 app/python 의 내장 파이썬으로만 돈다. 깃에서 막 받은 폴더처럼 런타임이 없으면 건너뛴다
+ @unittest.skipUnless(os.name=='nt' and (LAUNCHER.parent/'app'/'python'/'python.exe').is_file(),'Windows portable runtime')
  def test_batch_help_and_error_codes(self):
   for flag,expected in [('--help',0),('--invalid-option-for-test',2)]:
-   result=subprocess.run(['cmd','/d','/c',str(APP),flag],capture_output=True,encoding='utf-8',errors='replace',timeout=30)
+   result=subprocess.run(['cmd','/d','/c',str(LAUNCHER),flag],stdin=subprocess.DEVNULL,capture_output=True,encoding='utf-8',errors='replace',timeout=60)
    self.assertEqual(result.returncode,expected,result.stdout+result.stderr)
    self.assertNotIn('시작하지 못했습니다',result.stdout)
- @unittest.skipUnless(os.name=='nt','Windows python fallback')
- def test_batch_python_without_py_launcher(self):
-  env=os.environ.copy();env['PATH']=str(Path(sys.executable).parent)+';'+os.environ['SystemRoot']+'/System32'
-  result=subprocess.run(['cmd','/d','/c',str(APP),'--help'],capture_output=True,encoding='utf-8',errors='replace',env=env,timeout=30)
+ @unittest.skipUnless(os.name=='nt' and (LAUNCHER.parent/'app'/'python'/'python.exe').is_file(),'Windows portable runtime')
+ def test_batch_needs_nothing_on_path(self):
+  env=os.environ.copy();env['PATH']=os.environ['SystemRoot']+'/System32'
+  result=subprocess.run(['cmd','/d','/c',str(LAUNCHER),'--help'],stdin=subprocess.DEVNULL,capture_output=True,encoding='utf-8',errors='replace',env=env,timeout=60)
   self.assertEqual(result.returncode,0,result.stdout+result.stderr)
   self.assertIn('usage:',result.stdout.lower())
  def test_regular_video_preserves_explicit_material_choice(self):

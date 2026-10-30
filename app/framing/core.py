@@ -875,7 +875,9 @@ OPENCV_PACKAGES = ("opencv-python-headless", "opencv-python")
 BOOTSTRAP_FLAG = "FRAMING_BOOTSTRAPPED"
 
 HERE = Path(__file__).resolve().parent
-FFMPEG_HOME = HERE / "_ffmpeg"
+# 앱에 묶어 둔 도구 자리. 실행 껍데기(main.py · Mac 앱)가 환경변수로 알려 주면 그쪽을 본다
+FFMPEG_HOME = Path(os.environ.get("FRAMING_FFMPEG_HOME") or HERE / "_ffmpeg")
+RIFE_HOME = Path(os.environ.get("FRAMING_RIFE_HOME") or HERE / "_rife")
 
 VIDEO_EXTENSIONS = frozenset({
     ".mp4", ".mov", ".mkv", ".avi", ".m4v", ".webm", ".wmv", ".flv",
@@ -4557,7 +4559,7 @@ class RifeRunner:
     """Adapt the external ncnn CLI, validate its model and await cancellable output."""
 
     def __init__(self, program=None, abort=None):
-        bundled = HERE / '_rife' / ('rife-ncnn-vulkan' if sys.platform == 'darwin' else 'rife-ncnn-vulkan.exe')
+        bundled = RIFE_HOME / ('rife-ncnn-vulkan' if sys.platform == 'darwin' else 'rife-ncnn-vulkan.exe')
         self._program = str(program) if program else str(bundled) if bundled.is_file() else '' 
         self._abort = abort or (lambda: None)
 
@@ -10763,7 +10765,8 @@ class Startup:
 
         # 앱으로 구운 판(.exe · .app)은 필요한 것을 이미 안고 있다. 챙길 것도,
         # 콘솔을 떼려고 자기를 다시 띄울 것도 없다 — 하면 오히려 두 번 뜬다.
-        if not getattr(sys, "frozen", False):
+        # 앱으로 구운 판과 포터블 판(Framing.bat · 내장 파이썬)은 챙길 것을 이미 다 안고 있다
+        if not getattr(sys, "frozen", False) and not os.environ.get("FRAMING_PORTABLE"):
             cls.wizard().ensure()               # 처음이면 여기서 다 챙긴다 (콘솔에 보이게)
             if Relauncher.detach_console():
                 return 0                         # 콘솔을 떼고 새로 띄웠으니 여기서 끝

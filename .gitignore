@@ -13,3 +13,5 @@ app/web/.env
 app/mac/build/
 app/mac/dist/
 *.zip
+app/ffmpeg/
+app/rife/
