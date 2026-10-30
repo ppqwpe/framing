@@ -11,7 +11,7 @@ def run(paths,destination,check_cocoa=True):
             import webview,webview.platforms.cocoa,AppKit,WebKit
         report['checks']['cocoa_import']=check_cocoa
         ff=BundledFFmpeg(paths)
-        with tempfile.TemporaryDirectory(prefix='SHOTKIT 한글 검사 ') as folder:
+        with tempfile.TemporaryDirectory(prefix='Framing 한글 검사 ') as folder:
             root=Path(folder);movie=root/'테스트 영상.mp4'
             assert ff.run(['-y','-f','lavfi','-i','testsrc2=size=128x72:rate=24:duration=0.5',
                 '-f','lavfi','-i','sine=frequency=440:duration=0.5','-c:v','libx264','-pix_fmt','yuv420p',

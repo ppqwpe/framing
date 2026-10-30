@@ -1,4 +1,4 @@
-{$SHOTKIT_DOMAIN} {
+{$FRAMING_DOMAIN} {
     request_body {
         max_size 513MB
     }

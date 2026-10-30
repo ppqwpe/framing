@@ -1,10 +1,10 @@
 from pathlib import Path
 import sys,types,json,shutil,subprocess,hashlib,tempfile
-ROOT=Path(tempfile.gettempdir())/'shotkit_regression'
+ROOT=Path(tempfile.gettempdir())/'framing_regression'
 (ROOT/'work').mkdir(parents=True,exist_ok=True)
 APP=Path(__file__).resolve().parents[1]/'framing'/'core.py'
 def load_app():
-    module=types.ModuleType('shotkit_test');module.__file__=str(APP);sys.modules[module.__name__]=module
+    module=types.ModuleType('framing_test');module.__file__=str(APP);sys.modules[module.__name__]=module
     exec(compile(APP.read_text(encoding='utf-8'),str(APP),'exec'),module.__dict__)
     return module
 
@@ -52,10 +52,10 @@ class RegressionTests(unittest.TestCase):
   with tempfile.TemporaryDirectory(dir=ROOT/'work') as temp:
    a,b=Path(temp)/'a.txt',Path(temp)/'b.txt';a.write_text('A')
    expected={str(a):m.RenameHistory.stamp(a)};a.write_text('CHANGED')
-   with self.assertRaises(m.ShotkitError):m.RenameHistory().apply([(a,b)],expected)
+   with self.assertRaises(m.FramingError):m.RenameHistory().apply([(a,b)],expected)
    self.assertTrue(a.exists());self.assertFalse(b.exists())
  def test_project_roundtrip(self):
-  data={'format':'shotkit-project','version':1,'paths':[str(ROOT/'work/media/proxy.mp4')],'steps':[{'key':'audit','options':{}}]}
+  data={'format':'framing-project','version':1,'paths':[str(ROOT/'work/media/proxy.mp4')],'steps':[{'key':'audit','options':{}}]}
   self.assertEqual(m.ProjectDocument.loads(m.ProjectDocument.dumps(data))['steps'],data['steps'])
  def test_rife_cli_grid(self):
   with tempfile.TemporaryDirectory(dir=ROOT/'work') as temp:
@@ -74,7 +74,7 @@ class RegressionTests(unittest.TestCase):
    m.ImageIO.write(source/'f0002.png',np.ones((32,32,3),np.uint8)*100)
    job=m.RetimeJob(m.Options(out_dir=Path(temp)/'result',target_frames=4),m.FFmpegTool(False))
    job.should_stop=lambda:True
-   with self.assertRaisesRegex(m.ShotkitError,'중단'):job.run(source)
+   with self.assertRaisesRegex(m.FramingError,'중단'):job.run(source)
  def test_corrupt_image(self):
   with tempfile.TemporaryDirectory(dir=ROOT/'work') as temp:
    path=Path(temp)/'bad.png';path.write_bytes(b'')
@@ -88,7 +88,7 @@ class TimingTests(unittest.TestCase):
   self.assertEqual(m.FrameRate.frame_count(1.01,24),25)
  def test_invalid_timing(self):
   for value in [float('nan'),float('inf'),-1]:
-   with self.assertRaises(m.ShotkitError):m.FrameRate.frame_count(value,24)
+   with self.assertRaises(m.FramingError):m.FrameRate.frame_count(value,24)
  def test_real_image_encoder(self):
   from types import SimpleNamespace
   for fmt in ['exr','dpx']:
@@ -96,11 +96,11 @@ class TimingTests(unittest.TestCase):
    self.assertEqual(ext,'.'+fmt);self.assertIn(fmt,args)
  def test_unknown_image_format_rejected(self):
   from types import SimpleNamespace
-  with self.assertRaises(m.ShotkitError):m.ImageTarget().plan(SimpleNamespace(_opt=m.Options(image_format='bad')),Path('x.png'),None,m.ColorProfile())
+  with self.assertRaises(m.FramingError):m.ImageTarget().plan(SimpleNamespace(_opt=m.Options(image_format='bad')),Path('x.png'),None,m.ColorProfile())
  def test_rife_model_missing(self):
   with tempfile.TemporaryDirectory(dir=ROOT/'work') as temp:
    exe=Path(temp)/'rife.exe';exe.write_bytes(b'fake')
-   with self.assertRaises(m.ShotkitError):m.RifeRunner(str(exe))._model()
+   with self.assertRaises(m.FramingError):m.RifeRunner(str(exe))._model()
 
 class RestoreTests(unittest.TestCase):
  def test_motion_stretch_preserves_all_source_frames(self):

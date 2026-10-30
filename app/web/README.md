@@ -1,4 +1,4 @@
-# SHOTKIT Web
+# Framing Web
 
 Mac과 Windows에서 같은 웹 화면으로 사용하는 버전입니다. 기본 작업은 브라우저에서 처리하고, 무거운 작업은 서버에 보냅니다. Windows 앱과 별도입니다.
 
@@ -37,11 +37,11 @@ Docker Compose가 있는 Linux 서버와 서버를 가리키는 도메인이 필
 
 ## RIFE
 
-기본 패키지는 FFmpeg 보간을 제공합니다. RIFE는 별도 Linux용 rife-ncnn-vulkan 실행 파일, 모델, Vulkan 지원 GPU/드라이버와 컨테이너 장치 설정이 필요합니다. 실행 파일을 `SHOTKIT_RIFE_PROGRAM` 환경변수로 지정하세요. Windows용 exe를 Linux 서버에 넣어서는 실행되지 않습니다. 파일·모델이 있으면 메뉴가 열리지만 실제 GPU 호환성은 해당 서버에서 실행해 확인해야 합니다. 사용자의 Mac에 GPU 도구를 설치할 필요는 없습니다.
+기본 패키지는 FFmpeg 보간을 제공합니다. RIFE는 별도 Linux용 rife-ncnn-vulkan 실행 파일, 모델, Vulkan 지원 GPU/드라이버와 컨테이너 장치 설정이 필요합니다. 실행 파일을 `FRAMING_RIFE_PROGRAM` 환경변수로 지정하세요. Windows용 exe를 Linux 서버에 넣어서는 실행되지 않습니다. 파일·모델이 있으면 메뉴가 열리지만 실제 GPU 호환성은 해당 서버에서 실행해 확인해야 합니다. 사용자의 Mac에 GPU 도구를 설치할 필요는 없습니다.
 
 ## 로컬 개발 미리보기
 
-Python 3.14와 PATH에 있는 FFmpeg/ffprobe가 필요합니다. 가상환경에서 `pip install -r requirements.txt` 후 `SHOTKIT_ACCESS_PASSWORD`를 설정하고 `uvicorn server:app --host 127.0.0.1 --port 8766`으로 실행합니다. 이 주소는 해당 컴퓨터에서만 열립니다.
+Python 3.14와 PATH에 있는 FFmpeg/ffprobe가 필요합니다. 가상환경에서 `pip install -r requirements.txt` 후 `FRAMING_ACCESS_PASSWORD`를 설정하고 `uvicorn server:app --host 127.0.0.1 --port 8766`으로 실행합니다. 이 주소는 해당 컴퓨터에서만 열립니다.
 
 테스트: `pip install httpx` 후 `python -m unittest discover -s tests -v`.
 

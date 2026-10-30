@@ -51,7 +51,7 @@ export async function localJob(tool,files,o,signal,progress){
  if(tool==='compare'){
   if(!Number.isFinite(o.time)||o.time<0||![o.split,o.mix].every(x=>Number.isFinite(x)&&x>=0&&x<=1))throw Error('시간은 0 이상, 비율은 0~1로 입력하세요.');
   if(files.length!==2)throw Error('대조할 파일 두 개를 선택하세요.');const a=await loadMedia(files[0].file,signal);let b;
-  try{b=await loadMedia(files[1].file,signal);if(a.image!==b.image)throw Error('영상끼리 또는 이미지끼리 선택하세요.');await seek(a,o.time,signal);await seek(b,o.time,signal);const modes=o.views==='all'||o.format==='frames'?['side','wipe','overlay','flicker','a','b']:[o.mode];for(const mode of modes){signal.throwIfAborted();add({name:'SHOTKIT_'+mode+'.png',blob:await blobCanvas(compose(a,b,{...o,mode},o.time))})}}finally{a.close();b?.close()}return results;
+  try{b=await loadMedia(files[1].file,signal);if(a.image!==b.image)throw Error('영상끼리 또는 이미지끼리 선택하세요.');await seek(a,o.time,signal);await seek(b,o.time,signal);const modes=o.views==='all'||o.format==='frames'?['side','wipe','overlay','flicker','a','b']:[o.mode];for(const mode of modes){signal.throwIfAborted();add({name:'FRAMING_'+mode+'.png',blob:await blobCanvas(compose(a,b,{...o,mode},o.time))})}}finally{a.close();b?.close()}return results;
  }
  for(let i=0;i<files.length;i++){
   signal.throwIfAborted();const f=files[i],m=await loadMedia(f.file,signal);

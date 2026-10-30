@@ -2,8 +2,8 @@ services:
   app:
     build: .
     environment:
-      SHOTKIT_ACCESS_PASSWORD: ${SHOTKIT_ACCESS_PASSWORD:?Set a password in .env}
-      SHOTKIT_HTTPS: "1"
+      FRAMING_ACCESS_PASSWORD: ${FRAMING_ACCESS_PASSWORD:?Set a password in .env}
+      FRAMING_HTTPS: "1"
     volumes:
       - jobs:/data
     networks: [processing]
@@ -18,7 +18,7 @@ services:
   proxy:
     image: caddy:2
     environment:
-      SHOTKIT_DOMAIN: ${SHOTKIT_DOMAIN:?Set your domain in .env}
+      FRAMING_DOMAIN: ${FRAMING_DOMAIN:?Set your domain in .env}
     ports: ["80:80", "443:443"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

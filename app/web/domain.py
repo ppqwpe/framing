@@ -1,4 +1,4 @@
-"""Hosted SHOTKIT contracts. No browser-supplied filesystem paths cross this layer."""
+"""Hosted Framing contracts. No browser-supplied filesystem paths cross this layer."""
 from __future__ import annotations
 import math, re
 from pathlib import Path
@@ -14,7 +14,7 @@ def filename(value):
     if not name or name.startswith('.') or name.rsplit('.',1)[0].upper() in {'CON','PRN','AUX','NUL','COM1','LPT1'}:
         raise ValueError('파일 이름을 확인해 주세요.')
     if Path(name).suffix.lower() not in VIDEO|IMAGE|NOTES:
-        raise ValueError('영상·이미지 또는 SHOTKIT 리타임 메모를 올려 주세요.')
+        raise ValueError('영상·이미지 또는 Framing 리타임 메모를 올려 주세요.')
     return name
 
 def options(tool, raw, rife_ready=False):

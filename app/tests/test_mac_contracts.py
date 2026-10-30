@@ -51,7 +51,7 @@ class MacContractTests(unittest.TestCase):
     def test_missing_rife_not_offered(self):
         with patch.object(core.RifeRunner,'ready',new_callable=__import__('unittest').mock.PropertyMock,return_value=False):
             self.assertNotIn("['rife', 'RIFE · AI / GPU']",MacDocument().as_bytes().decode())
-            with self.assertRaises(core.ShotkitError):MacApi(self.paths)._build_options({'retimeMode':'rife'})
+            with self.assertRaises(core.FramingError):MacApi(self.paths)._build_options({'retimeMode':'rife'})
     def test_cocoa_window_and_cleanup_no_browser_fallback(self):
         self.media_tools();view=Mock();server=Mock();server.start.return_value='http://127.0.0.1:45678/'
         with patch.dict(sys.modules,{'webview':view}),patch.object(core,'LocalServer',return_value=server):

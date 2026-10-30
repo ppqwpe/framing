@@ -1,8 +1,8 @@
 import os, sys, tempfile, unittest, time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-os.environ['SHOTKIT_ACCESS_PASSWORD']='test-password-only'
-os.environ['SHOTKIT_DATA']=tempfile.mkdtemp(prefix='shotkit-web-test-')
+os.environ['FRAMING_ACCESS_PASSWORD']='test-password-only'
+os.environ['FRAMING_DATA']=tempfile.mkdtemp(prefix='framing-web-test-')
 from fastapi.testclient import TestClient
 from server import app
 from domain import options, filename

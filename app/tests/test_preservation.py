@@ -48,8 +48,8 @@ class PreservationTests(unittest.TestCase):
   self.assertTrue(old.restoration_problem)
   with tempfile.TemporaryDirectory() as name:
    note=Path(name)/'old.txt'
-   note.write_text('SHOTKIT_TIMELINE source=153 output=264 restorable=0\n'+', '.join(map(str,range(2,264))),encoding='utf-8')
-   with self.assertRaises(m.ShotkitError):m.RetimeNoteText(note).note(m.PlateSpec(source='old',frames=264,fps=24),264)
+   note.write_text('FRAMING_TIMELINE source=153 output=264 restorable=0\n'+', '.join(map(str,range(2,264))),encoding='utf-8')
+   with self.assertRaises(m.FramingError):m.RetimeNoteText(note).note(m.PlateSpec(source='old',frames=264,fps=24),264)
  def test_new_text_roundtrip_exact_slot_list(self):
   plan=m.RetimePlan(153,264,24);report=m.RetimeReport(plan,'motion')
   with tempfile.TemporaryDirectory() as name:

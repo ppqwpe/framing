@@ -52,7 +52,7 @@ class CompareTests(unittest.TestCase):
   self.assertAlmostEqual(self.sound(half[0])[1]/self.sound(full[0])[1],.5,delta=.025)
  def test_invalid_or_missing_audio_rejected(self):
   for state in [dict(audioSource='x'),dict(audioVolume=float('nan')),dict(audioVolume=-1),dict(audioSource='a')]:
-   with self.assertRaises(m.ShotkitError):m.CompareAudioPolicy(self.ff,self.root/'silent.mp4',self.root/'b.mp4',state)
+   with self.assertRaises(m.FramingError):m.CompareAudioPolicy(self.ff,self.root/'silent.mp4',self.root/'b.mp4',state)
  def test_odd_selection_is_playable_and_png_exact(self):
   region=dict(x=1,y=1,width=31,height=29)
   _,files,_=self.export(region=region);v=next(s for s in self.probe(files[0]) if s['codec_type']=='video')

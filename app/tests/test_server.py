@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional,Callable
 s=(Path(__file__).resolve().parents[1]/'framing'/'core.py').read_text(encoding='utf-8')
 t=ast.parse(s); ns=globals()
-classes={'ShotkitError','LocalRequestPolicy','ApiDispatcher','HttpByteRange','LocalServer','EventBus','UiDocument','RetimeEngineFactory'}
+classes={'FramingError','LocalRequestPolicy','ApiDispatcher','HttpByteRange','LocalServer','EventBus','UiDocument','RetimeEngineFactory'}
 for n in t.body:
  if isinstance(n,ast.ClassDef) and n.name in classes:
   exec(compile(ast.Module(body=[n],type_ignores=[]),'<isolated>', 'exec'),ns)
@@ -17,7 +17,7 @@ class SecurityTests(unittest.TestCase):
  def setUpClass(cls):
   cls.server=LocalServer(FakeApi(),UiDocument(html));cls.url=cls.server.start()
   with urllib.request.urlopen(cls.url) as r: cls.document=r.read().decode()
-  cls.token=re.search(r'window.__shotkitToken=("[^"]+")',cls.document).group(1)
+  cls.token=re.search(r'window.__framingToken=("[^"]+")',cls.document).group(1)
   cls.token=json.loads(cls.token)
  @classmethod
  def tearDownClass(cls):
@@ -28,7 +28,7 @@ class SecurityTests(unittest.TestCase):
    with urllib.request.urlopen(request) as r:return r.status,json.load(r)
   except urllib.error.HTTPError as e:
    with e:return e.code,json.load(e)
- def headers(self):return {'Content-Type':'application/json','X-Shotkit-Token':self.token}
+ def headers(self):return {'Content-Type':'application/json','X-Framing-Token':self.token}
  def test_authorized(self):self.assertEqual(self.call({'method':'describe','args':[]},self.headers()),(200,{'ok':True,'value':{'test':True}}))
  def test_missing_token(self):self.assertEqual(self.call({'method':'describe'}, {'Content-Type':'application/json'})[0],403)
  def test_cross_origin(self):
@@ -43,24 +43,24 @@ class SecurityTests(unittest.TestCase):
   h=self.headers();h['Content-Type']='text/plain';self.assertEqual(self.call({'method':'describe'},h)[0],415)
  def test_events(self):
   for token,expected in [('',403),(self.token,200)]:
-   req=urllib.request.Request(self.url+'events?after=0',headers={'X-Shotkit-Token':token})
+   req=urllib.request.Request(self.url+'events?after=0',headers={'X-Framing-Token':token})
    try:
     with urllib.request.urlopen(req) as r:code=r.status
    except urllib.error.HTTPError as e:code=e.code;e.close()
    self.assertEqual(code,expected)
  def test_cursor(self):
-  req=urllib.request.Request(self.url+'events?after=bad',headers={'X-Shotkit-Token':self.token})
+  req=urllib.request.Request(self.url+'events?after=bad',headers={'X-Framing-Token':self.token})
   with self.assertRaises(urllib.error.HTTPError) as ctx:urllib.request.urlopen(req)
   self.assertEqual(ctx.exception.code,400);ctx.exception.close()
  def test_document(self):
-  self.assertIn('X-Shotkit-Token',self.document);self.assertEqual(self.document.count('window.__shotkitToken='),1)
+  self.assertIn('X-Framing-Token',self.document);self.assertEqual(self.document.count('window.__framingToken='),1)
  def test_api_parity(self):
   methods=ast.literal_eval(re.search(r'const API_METHODS = (\[.*?\]);',html,re.S).group(1))
   self.assertEqual(set(methods),set(ApiDispatcher.METHODS))
  def test_body_limits(self):
   p=LocalRequestPolicy()
   for value in ['-1','0','bad',str(p.MAX_BODY+1)]:
-   with self.assertRaises(ShotkitError):p.body_length({'Content-Length':value})
+   with self.assertRaises(FramingError):p.body_length({'Content-Length':value})
  def test_ranges(self):
   for value,expected in [('',(0,99,False)),('bytes=2-5',(2,5,True)),('bytes=90-',(90,99,True)),('bytes=-10',(90,99,True)),('bytes=-200',(0,99,True))]:self.assertEqual(HttpByteRange.parse(value,100),expected)
   for value in ['bytes=100-','bytes=5-2','bytes=-0','bytes=-','bytes=1-2,4-5']:
@@ -88,15 +88,15 @@ class EngineTests(unittest.TestCase):
    self.assertIsInstance(factory.create(mode,plan,matte,None,None,None,sample),expected)
  def test_unknown_engine(self):
   from types import SimpleNamespace
-  with self.assertRaises(ShotkitError):RetimeEngineFactory((),None).create('bogus',SimpleNamespace(),False,None,None,None)
+  with self.assertRaises(FramingError):RetimeEngineFactory((),None).create('bogus',SimpleNamespace(),False,None,None,None)
  def test_shortcut_quoting(self):
   node=next(n for n in t.body if isinstance(n,ast.ClassDef) and n.name=='DesktopShortcut')
-  namespace={'Path':Path,'Optional':Optional,'SELF':"C:/O'Neil/SHOTKIT.bat"}
+  namespace={'Path':Path,'Optional':Optional,'SELF':"C:/O'Neil/Framing.bat"}
   exec(compile(ast.Module(body=[node],type_ignores=[]),'<shortcut>','exec'),namespace)
   import inspect
   method=next(n for n in node.body if isinstance(n,ast.FunctionDef) and n.name=='_windows')
   expression=next(n.value for n in method.body if isinstance(n,ast.Assign) and any(isinstance(a,ast.Name) and a.id=='script' for a in n.targets))
-  env={'link':Path("C:/O'Neil/SHOTKIT.lnk"),'launcher':Path("C:/O'Neil/SHOTKIT.bat"),'icon':Path("C:/O'Neil/icon.ico")}
+  env={'link':Path("C:/O'Neil/Framing.lnk"),'launcher':Path("C:/O'Neil/Framing.bat"),'icon':Path("C:/O'Neil/icon.ico")}
   result=eval(compile(ast.Expression(expression),'<quoting>','eval'),env)
   self.assertIn("O''Neil",result);self.assertNotIn("O'Neil",result)
 if __name__=='__main__':unittest.main(verbosity=2)

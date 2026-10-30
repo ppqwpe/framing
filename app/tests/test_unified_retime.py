@@ -23,28 +23,28 @@ class UnifiedRetimeTests(unittest.TestCase):
  def test_legacy_plate_remains_available(self):
   self.assertIs(m.UiJobSelection.resolve('plate',m.Options()),m.PlateRifeJob)
  def test_unknown_job_rejected(self):
-  with self.assertRaises(m.ShotkitError):m.UiJobSelection.resolve('invalid',m.Options())
+  with self.assertRaises(m.FramingError):m.UiJobSelection.resolve('invalid',m.Options())
  def test_equivalent_length_controls(self):
   for values in [dict(target_frames=352),dict(target_seconds=352/(24000/1001)),dict(speed=.5)]:
    with patch.object(m.RifeRunner,'ready',new_callable=__import__('unittest.mock',fromlist=['PropertyMock']).PropertyMock,return_value=True),patch.object(m.RifeRunner,'_model'):
     self.assertEqual(m.RifeRetimeJob(m.Options(**values),None)._wanted(self.spec()),352)
  def test_too_large_and_too_short_rejected(self):
   for values in [dict(target_frames=6001),dict(target_frames=1),dict(target_seconds=.001),dict(speed=1000),dict(target_seconds=100000)]:
-   with self.assertRaises(m.ShotkitError):m.RifeRetimeJob(m.Options(**values),None)._wanted(self.spec())
+   with self.assertRaises(m.FramingError):m.RifeRetimeJob(m.Options(**values),None)._wanted(self.spec())
  def test_missing_gpu_tool_does_not_report_export_success(self):
   with patch.object(m.RifeRunner,'ready',new_callable=__import__('unittest.mock',fromlist=['PropertyMock']).PropertyMock,return_value=False):
-   with self.assertRaisesRegex(m.ShotkitError,'FFmpeg'):m.RifeRetimeJob(m.Options(target_frames=200),None)._wanted(self.spec())
+   with self.assertRaisesRegex(m.FramingError,'FFmpeg'):m.RifeRetimeJob(m.Options(target_frames=200),None)._wanted(self.spec())
  def test_shrink_does_not_require_gpu(self):
   with patch.object(m.RifeRunner,'_model',side_effect=AssertionError('Must not invoke GPU')):
    self.assertEqual(m.RifeRetimeJob(m.Options(target_frames=88),None)._wanted(self.spec()),88)
  def test_sequence_rejected_before_processing(self):
   with tempfile.TemporaryDirectory() as name:
-   with self.assertRaisesRegex(m.ShotkitError,'영상 파일'):m.RifeRetimeJob(m.Options(),None).run(Path(name))
+   with self.assertRaisesRegex(m.FramingError,'영상 파일'):m.RifeRetimeJob(m.Options(),None).run(Path(name))
  def test_alpha_not_silently_removed(self):
   with tempfile.TemporaryDirectory() as name:
    path=Path(name)/'alpha.mov';path.touch()
    ff=types.SimpleNamespace(probe=lambda p:types.SimpleNamespace(alpha=True))
-   with self.assertRaisesRegex(m.ShotkitError,'알파'):m.RifeRetimeJob(m.Options(),ff).run(path)
+   with self.assertRaisesRegex(m.FramingError,'알파'):m.RifeRetimeJob(m.Options(),ff).run(path)
  def test_pipeline_passes_only_result_movie(self):
   with tempfile.TemporaryDirectory() as name:
    path=Path(name)/'input.mp4';path.touch();movie=Path(name)/'out.mov'

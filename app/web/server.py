@@ -1,4 +1,4 @@
-"""Single-process, password-protected SHOTKIT web service."""
+"""Single-process, password-protected Framing web service."""
 import asyncio, hashlib, hmac, json, os, secrets, shutil, signal, subprocess, sys, time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,13 +8,13 @@ from fastapi.staticfiles import StaticFiles
 from domain import filename, options
 
 BASE=Path(__file__).resolve().parent
-DATA=Path(os.environ.get('SHOTKIT_DATA', BASE/'data')).resolve()
-PASSWORD=os.environ.get('SHOTKIT_ACCESS_PASSWORD','')
-SECURE=os.environ.get('SHOTKIT_HTTPS','0')=='1'
+DATA=Path(os.environ.get('FRAMING_DATA', BASE/'data')).resolve()
+PASSWORD=os.environ.get('FRAMING_ACCESS_PASSWORD','')
+SECURE=os.environ.get('FRAMING_HTTPS','0')=='1'
 LIMIT=512*1024*1024
 sessions={}; jobs={}; attempts={}; gate=asyncio.Semaphore(1)
 def rife_ready():
-    p=Path(os.environ.get('SHOTKIT_RIFE_PROGRAM',''))
+    p=Path(os.environ.get('FRAMING_RIFE_PROGRAM',''))
     return p.is_file() and any((p.parent/n).is_dir() for n in ['rife-v4.6','rife-v4'])
 def stop(p):
     if p and p.poll() is None:
@@ -34,7 +34,7 @@ async def cleanup():
             if not times or time.time()-times[-1]>300:attempts.pop(ip,None)
 @asynccontextmanager
 async def lifespan(app):
-    if len(PASSWORD)<12:raise RuntimeError('SHOTKIT_ACCESS_PASSWORD must contain at least 12 characters.')
+    if len(PASSWORD)<12:raise RuntimeError('FRAMING_ACCESS_PASSWORD must contain at least 12 characters.')
     DATA.mkdir(parents=True,exist_ok=True)
     # Sessions are intentionally not resumed after a restart. Remove expired data only.
     for p in DATA.iterdir():
@@ -57,7 +57,7 @@ async def headers(req,call_next):
     res.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
     return res
 def session(req,write=False):
-    key=req.cookies.get('shotkit');s=sessions.get(key)
+    key=req.cookies.get('framing');s=sessions.get(key)
     if not s:raise HTTPException(401,'접속 비밀번호를 입력하세요.')
     if write and not hmac.compare_digest(req.headers.get('x-csrf-token',''),s['csrf']):raise HTTPException(403,'새로고침 후 다시 시도하세요.')
     s['seen']=time.time();return key,s
@@ -83,7 +83,7 @@ async def login(req:Request):
     if len(sessions)>=100:raise HTTPException(503,'작업 공간이 가득 찼습니다. 잠시 후 접속하세요.')
     key=secrets.token_hex(32);root=DATA/key;root.mkdir()
     sessions[key]={'root':root,'csrf':secrets.token_hex(32),'seen':now,'files':{},'uploading':False}
-    res=JSONResponse({'ok':True});res.set_cookie('shotkit',key,httponly=True,secure=SECURE,samesite='strict',max_age=86400);return res
+    res=JSONResponse({'ok':True});res.set_cookie('framing',key,httponly=True,secure=SECURE,samesite='strict',max_age=86400);return res
 @app.get('/api/session')
 async def bootstrap(req:Request):
     key,s=session(req)

@@ -14,11 +14,11 @@ class MacPaths:
         return cls(Path.home(),Path(getattr(sys,'_MEIPASS',Path(__file__).parent)))
 
     @property
-    def support(self):return self.home/'Library'/'Application Support'/'SHOTKIT'
+    def support(self):return self.home/'Library'/'Application Support'/'Framing'
     @property
-    def logs(self):return self.home/'Library'/'Logs'/'SHOTKIT'
+    def logs(self):return self.home/'Library'/'Logs'/'Framing'
     @property
-    def cache(self):return self.home/'Library'/'Caches'/'SHOTKIT'
+    def cache(self):return self.home/'Library'/'Caches'/'Framing'
 
     def prepare(self):
         for p in (self.support,self.logs,self.cache):p.mkdir(parents=True,exist_ok=True)
@@ -31,7 +31,7 @@ class MacPaths:
 
 class AppLog:
     def __init__(self,folder):
-        self.logger=logging.getLogger('shotkit.mac')
+        self.logger=logging.getLogger('framing.mac')
         self.logger.setLevel(logging.INFO)
         handler=RotatingFileHandler(folder/'app.log',maxBytes=4_000_000,backupCount=2,encoding='utf-8')
         handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
@@ -60,7 +60,7 @@ class NativeDialogs:
     def save(self,name):
         import webview
         return self.paths(self.window.create_file_dialog(webview.FileDialog.SAVE,save_filename=name,
-            file_types=('SHOTKIT 작업 (*.json)',)))
+            file_types=('Framing 작업 (*.json)',)))
 
 class ChildProcesses:
     """Track only the media processes owned by this application."""
@@ -92,7 +92,7 @@ def error_alert(message):
     if sys.platform=='darwin':
         from AppKit import NSAlert
         alert=NSAlert.alloc().init()
-        alert.setMessageText_('SHOTKIT을 열지 못했습니다')
+        alert.setMessageText_('Framing을 열지 못했습니다')
         alert.setInformativeText_(str(message))
         alert.addButtonWithTitle_('확인')
         alert.runModal()

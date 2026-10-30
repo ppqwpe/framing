@@ -1,14 +1,14 @@
-# SHOTKIT Mac
+# Framing Mac
 
 Mac에서 직접 실행하는 데스크톱 앱의 소스와 빌드 도구입니다. **이 폴더는 아직 빌드된 .app이 아닙니다.** 현재 작업 환경은 Windows이므로 macOS 실행 검증은 하지 않았습니다.
 
-앱을 빌드하면 사용자는 ZIP을 풀고 SHOTKIT.app을 응용 프로그램 폴더로 옮겨 실행합니다. Python·Homebrew·FFmpeg는 빌드하는 Mac에만 필요하며, 배포받는 사용자에게 별도 설치를 요구하지 않도록 묶습니다. 실제 배포 전에는 개발 도구가 없는 Mac에서 확인해야 합니다.
+앱을 빌드하면 사용자는 ZIP을 풀고 Framing.app을 응용 프로그램 폴더로 옮겨 실행합니다. Python·Homebrew·FFmpeg는 빌드하는 Mac에만 필요하며, 배포받는 사용자에게 별도 설치를 요구하지 않도록 묶습니다. 실제 배포 전에는 개발 도구가 없는 Mac에서 확인해야 합니다.
 
 ## 앱 동작
 
 - Cocoa와 WKWebView를 사용하는 Mac 앱 창
 - macOS 파일·폴더 선택 창, 작업 파일 저장 창
-- 기존 SHOTKIT의 프레임 추출, 컷 분할, 리타임, 메모 복원, 역재생, 대조, 검사, 콘택트시트, 변환, 이름 변경
+- 기존 Framing의 프레임 추출, 컷 분할, 리타임, 메모 복원, 역재생, 대조, 검사, 콘택트시트, 변환, 이름 변경
 - 결과 폴더와 파일을 Finder로 열기
 - 앱 실행과 함께 내부 처리 시작, 종료할 때 처리 프로세스 정리
 - 개인 파일은 Mac에서 처리하며 외부 서버에 업로드하지 않음
@@ -23,7 +23,7 @@ Mac에서 직접 실행하는 데스크톱 앱의 소스와 빌드 도구입니�
 
 ```sh
 brew install python@3.12 ffmpeg
-cd "SHOTKIT_Mac_Source 폴더의 경로"
+cd "FRAMING_Mac_Source 폴더의 경로"
 bash Mac에서_빌드.command
 ```
 
@@ -32,11 +32,11 @@ bash Mac에서_빌드.command
 완료 파일:
 
 ```text
-dist/arm64/SHOTKIT.app
-dist/arm64/SHOTKIT_Mac_AppleSilicon.zip
+dist/arm64/Framing.app
+dist/arm64/FRAMING_Mac_AppleSilicon.zip
 ```
 
-Intel Mac에서 빌드하면 `dist/x86_64/SHOTKIT_Mac_Intel.zip`이 만들어집니다. M 시리즈는 arm64, Intel은 x86_64로 **각각 빌드**합니다. Universal 앱이나 이전 macOS 호환성을 검증했다고 간주하면 안 됩니다. 빌드한 macOS 버전은 `build-status.json`에 기록됩니다.
+Intel Mac에서 빌드하면 `dist/x86_64/FRAMING_Mac_Intel.zip`이 만들어집니다. M 시리즈는 arm64, Intel은 x86_64로 **각각 빌드**합니다. Universal 앱이나 이전 macOS 호환성을 검증했다고 간주하면 안 됩니다. 빌드한 macOS 버전은 `build-status.json`에 기록됩니다.
 
 ## 공개 배포용 서명·공증
 
@@ -61,15 +61,15 @@ bash Mac에서_빌드.command \
 
 자동 검사만으로 위 UI 검사를 통과했다고 표시하지 않습니다. `build-status.json`의 `manual_gui_test`는 기본값이 false입니다.
 
-설정: `~/Library/Application Support/SHOTKIT`
+설정: `~/Library/Application Support/Framing`
 
-로그: `~/Library/Logs/SHOTKIT`
+로그: `~/Library/Logs/Framing`
 
-화면 캐시: `~/Library/Caches/SHOTKIT`
+화면 캐시: `~/Library/Caches/Framing`
 
 ## 코드 구조
 
-`src/mac_app.py`는 앱 시작·Mac용 API·화면을, `src/mac_runtime.py`는 경로·선택 창·로그·프로세스 종료를 맡습니다. `src/shotkit_core.py`는 기존 처리 엔진이며 Mac의 RIFE 실행 파일 구분만 추가했습니다. Windows 앱과 웹앱 파일은 수정하지 않았습니다.
+`src/mac_app.py`는 앱 시작·Mac용 API·화면을, `src/mac_runtime.py`는 경로·선택 창·로그·프로세스 종료를 맡습니다. `src/framing_core.py`는 기존 처리 엔진이며 Mac의 RIFE 실행 파일 구분만 추가했습니다. Windows 앱과 웹앱 파일은 수정하지 않았습니다.
 
 회귀 검사:
 

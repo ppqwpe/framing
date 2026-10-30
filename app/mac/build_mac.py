@@ -47,27 +47,27 @@ def main():
     if args.notary_profile and not args.identity:raise RuntimeError('공증에는 Developer ID 서명 인증서가 필요합니다.')
     ffmpeg=native_tool('ffmpeg',arch);ffprobe=native_tool('ffprobe',arch)
     from PIL import Image
-    Image.open(ROOT/'assets'/'icon.ico').convert('RGBA').resize((1024,1024)).save(ROOT/'assets'/'SHOTKIT.icns')
+    Image.open(ROOT/'assets'/'icon.ico').convert('RGBA').resize((1024,1024)).save(ROOT/'assets'/'Framing.icns')
     metadata=ROOT/'build-metadata';metadata.mkdir(exist_ok=True)
     (metadata/'ffmpeg-license.txt').write_text(text([ffmpeg,'-L']),encoding='utf-8')
     (metadata/'ffmpeg-build.txt').write_text(text([ffmpeg,'-version']),encoding='utf-8')
     (metadata/'python-packages.json').write_text(text([sys.executable,'-m','pip','list','--format=json']),encoding='utf-8')
-    env=dict(os.environ,SHOTKIT_BUILD_ARCH=arch,SHOTKIT_BUILD_FFMPEG=str(ffmpeg),SHOTKIT_BUILD_FFPROBE=str(ffprobe))
-    if args.identity:env['SHOTKIT_CODESIGN_IDENTITY']=args.identity
+    env=dict(os.environ,FRAMING_BUILD_ARCH=arch,FRAMING_BUILD_FFMPEG=str(ffmpeg),FRAMING_BUILD_FFPROBE=str(ffprobe))
+    if args.identity:env['FRAMING_CODESIGN_IDENTITY']=args.identity
     dist=ROOT/'dist'/arch
     command([sys.executable,'-m','PyInstaller','--noconfirm','--clean','--distpath',dist,
-             '--workpath',ROOT/'build'/arch,ROOT/'SHOTKIT.spec'],cwd=ROOT,env=env)
-    app=dist/'SHOTKIT.app';audit_bundle(app)
+             '--workpath',ROOT/'build'/arch,ROOT/'Framing.spec'],cwd=ROOT,env=env)
+    app=dist/'Framing.app';audit_bundle(app)
     command(['codesign','--verify','--deep','--strict','--verbose=2',app])
     # No Homebrew PATH: checks must use the binaries and dependencies inside the .app.
     runenv=dict(os.environ,PATH='/usr/bin:/bin:/usr/sbin:/sbin')
     for key in list(runenv):
         if key.startswith(('PYTHON','DYLD_')):runenv.pop(key,None)
     report=dist/'mac-self-test.json'
-    command([app/'Contents'/'MacOS'/'SHOTKIT','--self-test',report],cwd='/tmp',env=runenv,timeout=300)
+    command([app/'Contents'/'MacOS'/'Framing','--self-test',report],cwd='/tmp',env=runenv,timeout=300)
     if not json.loads(report.read_text())['ok']:raise RuntimeError('앱 내부 검사 실패: '+str(report))
     suffix='AppleSilicon' if arch=='arm64' else 'Intel'
-    archive=dist/f'SHOTKIT_Mac_{suffix}.zip'
+    archive=dist/f'FRAMING_Mac_{suffix}.zip'
     def pack():
         archive.unlink(missing_ok=True)
         command(['ditto','-c','-k','--sequesterRsrc','--keepParent',app,archive])

@@ -26,10 +26,10 @@ class MacApi(core.Api):
     def project_save(self,data):
         try:
             document=core.ProjectDocument.dumps(data)
-            picked=NativeDialogs(self._window).save('SHOTKIT.shotkit.json')
+            picked=NativeDialogs(self._window).save('Framing.framing.json')
             if not picked:return {'ok':True,'cancelled':True}
             destination=Path(picked[0])
-            if not destination.name.endswith('.shotkit.json'):destination=destination.with_name(destination.name+'.shotkit.json')
+            if not destination.name.endswith('.framing.json'):destination=destination.with_name(destination.name+'.framing.json')
             temporary=destination.with_name('.'+destination.name+'.'+uuid.uuid4().hex+'.tmp')
             try:temporary.write_text(document,encoding='utf-8');temporary.replace(destination)
             finally:temporary.unlink(missing_ok=True)
@@ -44,7 +44,7 @@ class MacApi(core.Api):
         options=super()._build_options(raw)
         if options.retime_mode=='rife':
             runner=core.RifeRunner(options.rife_program)
-            if not runner.ready:raise core.ShotkitError('Mac용 RIFE 실행 파일과 모델이 필요합니다. FFmpeg · 모션을 선택해 주세요.')
+            if not runner.ready:raise core.FramingError('Mac용 RIFE 실행 파일과 모델이 필요합니다. FFmpeg · 모션을 선택해 주세요.')
             options.rife_program=runner._program
         return options
 
@@ -68,7 +68,7 @@ class MacApplication:
         self.server=core.LocalServer(self.api,MacDocument())
         try:
             url=self.server.start()
-            window=webview.create_window('SHOTKIT',url,js_api=self.api,width=1360,height=900,
+            window=webview.create_window('Framing',url,js_api=self.api,width=1360,height=900,
                 min_size=(900,640),background_color='#0f1113',confirm_close=True)
             self.api.bind(window)
             webview.start(self.after_start,window,gui='cocoa',debug=False,

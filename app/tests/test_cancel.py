@@ -9,14 +9,14 @@ class HardeningTests(unittest.TestCase):
  def test_cancel_before_proxy_does_not_encode(self):
   ff=types.SimpleNamespace(run=lambda *a,**k:self.fail('started encoding after cancel'))
   with tempfile.TemporaryDirectory() as tmp:
-   with self.assertRaises(m.ShotkitError):m.PlayableProxy(ff,Path(tmp),cancelled=lambda:True).make(Path('a.mov'),None,True,'view')
+   with self.assertRaises(m.FramingError):m.PlayableProxy(ff,Path(tmp),cancelled=lambda:True).make(Path('a.mov'),None,True,'view')
  def test_cancel_during_proxy_does_not_retry_or_return_success(self):
   for code in [0,1]:
    with self.subTest(code=code),tempfile.TemporaryDirectory() as tmp:
     stopped=[False];calls=[]
     def run(args,**kwargs):
      calls.append(args);Path(args[-1]).write_bytes(b'x'*2048);stopped[0]=True;return code
-    with self.assertRaises(m.ShotkitError):m.PlayableProxy(types.SimpleNamespace(run=run),Path(tmp),cancelled=lambda:stopped[0]).make(Path('a.mov'),None,True,'view')
+    with self.assertRaises(m.FramingError):m.PlayableProxy(types.SimpleNamespace(run=run),Path(tmp),cancelled=lambda:stopped[0]).make(Path('a.mov'),None,True,'view')
     self.assertEqual(len(calls),1)
  def test_normal_proxy_failure_still_retries(self):
   with tempfile.TemporaryDirectory() as tmp:
@@ -33,7 +33,7 @@ class HardeningTests(unittest.TestCase):
   def watch(*args):stopped[0]=True;return Path('a.mp4'),Path('b.mp4'),''
   info=m.ProbeInfo(vcodec='h264',width=96,height=64,fps=24,duration=1)
   with tempfile.TemporaryDirectory() as tmp,patch.object(m.Scratch,'folder',return_value=Path(tmp)),patch.object(job,'_probe_both',return_value=(info,info)),patch.object(job,'_watchable',side_effect=watch):
-   with self.assertRaises(m.ShotkitError):job.run_pair(Path('a.mp4'),Path('b.mp4'))
+   with self.assertRaises(m.FramingError):job.run_pair(Path('a.mp4'),Path('b.mp4'))
  def test_large_error_output_does_not_block_and_preserves_tail(self):
   # Real child process writes much more than the OS pipe capacity to stderr.
   real_popen=subprocess.Popen;children=[]
@@ -47,7 +47,7 @@ class HardeningTests(unittest.TestCase):
   self.assertNotIn(1.0,progress);self.assertIsNone(ff._active);self.assertTrue(all(p.poll() is not None for p in children))
  def test_real_ffmpeg_error_is_captured_for_normal_export(self):
   ff=m.FFmpegTool(False)
-  code=ff.run(['-i','__SHOTKIT_MISSING_INPUT_FOR_TEST__.mp4','-f','null','-'],total_seconds=1)
-  self.assertNotEqual(code,0);self.assertIn('__SHOTKIT_MISSING_INPUT_FOR_TEST__',ff.why_failed())
+  code=ff.run(['-i','__FRAMING_MISSING_INPUT_FOR_TEST__.mp4','-f','null','-'],total_seconds=1)
+  self.assertNotEqual(code,0);self.assertIn('__FRAMING_MISSING_INPUT_FOR_TEST__',ff.why_failed())
 
 if __name__=='__main__':unittest.main(verbosity=2)

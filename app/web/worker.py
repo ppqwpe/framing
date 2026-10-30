@@ -1,7 +1,7 @@
 """One isolated process per job; desktop UI and local-file RPC are never exposed."""
 import json, os, shutil, sys, traceback, zipfile
 from pathlib import Path
-import shotkit_core as core
+import framing_core as core
 from domain import IMAGE, NOTES, VIDEO, rename_rules
 
 def execute(request_path):
@@ -50,7 +50,7 @@ def execute(request_path):
         if tool=='extract':
             opts['at']='all' if o['pick']=='all' else o['at'] if o['pick']=='at' else ''
             opts['count']=o['count'] if o['pick']=='count' else 0
-        if tool=='retime':opts.update(no_snap=True,retime_note=True,delivery='both',rife_program=os.environ.get('SHOTKIT_RIFE_PROGRAM',''))
+        if tool=='retime':opts.update(no_snap=True,retime_note=True,delivery='both',rife_program=os.environ.get('FRAMING_RIFE_PROGRAM',''))
         if tool=='reverse':opts['delivery']='mp4'
         if tool=='revert':
             notes=[p for p in selected if p.suffix.lower() in NOTES]
@@ -88,7 +88,7 @@ def execute(request_path):
             s=p.read_text(encoding='utf-8-sig',errors='replace')
             s=s.replace(str(root),'[작업]').replace(str(root).replace('\\','\\\\'),'[작업]')
             p.write_text(s,encoding='utf-8')
-    bundle=output/'SHOTKIT_결과.zip'
+    bundle=output/'FRAMING_결과.zip'
     with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED,compresslevel=1) as z:
         for p in sorted(output.rglob('*')):
             if p.is_file() and p!=bundle:z.write(p,p.relative_to(output).as_posix())

@@ -1,10 +1,10 @@
-"""Release compatibility and boundary checks. Run next to SHOTKIT.bat and its baseline JSON."""
+"""Release compatibility and boundary checks. Run next to Framing.bat and its baseline JSON."""
 from pathlib import Path
 import dataclasses,json,sys,types,unittest,tempfile,subprocess,shutil,re,os
 HERE=Path(__file__).resolve().parent
 APP=Path(__file__).resolve().parents[1]/'framing'/'core.py'
 source=APP.read_text(encoding='utf-8')
-m=types.ModuleType('shotkit_release_test');m.__file__=str(APP);sys.modules[m.__name__]=m
+m=types.ModuleType('framing_release_test');m.__file__=str(APP);sys.modules[m.__name__]=m
 exec(compile(source,str(APP),'exec'),m.__dict__)
 baseline=json.loads((HERE/'compat_baseline.json').read_text(encoding='utf-8'))
 class ReleaseTests(unittest.TestCase):
@@ -59,13 +59,13 @@ class ReleaseTests(unittest.TestCase):
     info=ff.probe(movie);self.assertEqual(info.frames,4);self.assertAlmostEqual(info.fps,fps,places=6)
  def test_invalid_source_rates(self):
   for fps in [0,-1,None,float('nan'),float('inf'),'bad']:
-   with self.assertRaises(m.ShotkitError):m.FrameRate.from_value(fps)
+   with self.assertRaises(m.FramingError):m.FrameRate.from_value(fps)
  def test_sequence_limit_preserved(self):
   import numpy as np
   with tempfile.TemporaryDirectory() as name:
    folder=Path(name);m.ImageIO.write(folder/'frame0001.png',np.zeros((16,16,3),np.uint8))
    for fps in [0.5,480]:
-    with self.assertRaises(m.ShotkitError):m.SequenceInput(folder,fps,lambda:None)
+    with self.assertRaises(m.FramingError):m.SequenceInput(folder,fps,lambda:None)
  def test_restore_capability_serialized(self):
   note=m.StretchNote(m.PlateSpec(source='x',frames=3,fps=24),5,[0,-1,-1,-1,2],[1,2,3])
   self.assertFalse(note.as_dict()['canRestoreSource'])
