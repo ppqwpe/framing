@@ -3,9 +3,8 @@ from pathlib import Path
 import sys,types,unittest,tempfile,subprocess,shutil,json
 from unittest.mock import patch
 HERE=Path(__file__).resolve().parent
-APP=Path(__file__).resolve().parents[1]/'framing'/'core.py'
-m=types.ModuleType('unified_retime_test');m.__file__=str(APP);sys.modules[m.__name__]=m
-exec(compile(APP.read_text(encoding='utf-8'),str(APP),'exec'),m.__dict__)
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from framing import core as m
 
 class UnifiedRetimeTests(unittest.TestCase):
  def test_legacy_windows_console_does_not_abort_job(self):

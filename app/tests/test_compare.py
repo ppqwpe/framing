@@ -2,9 +2,8 @@
 from pathlib import Path
 import sys,types,unittest,tempfile,subprocess,json,shutil
 import numpy as np
-APP=Path(__file__).resolve().parents[1]/'framing'/'core.py'
-m=types.ModuleType('compare_test');m.__file__=str(APP);sys.modules[m.__name__]=m
-exec(compile(APP.read_text(encoding='utf-8'),str(APP),'exec'),m.__dict__)
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from framing import core as m
 
 class CompareTests(unittest.TestCase):
  @classmethod

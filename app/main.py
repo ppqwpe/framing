@@ -20,10 +20,10 @@ if (APP / "python").is_dir() and Path(sys.executable).parent == APP / "python":
 os.environ.setdefault("FRAMING_MODE", "browser")       # 그리딩처럼 브라우저로 (창이 필요하면 FRAMING_MODE=window)
 os.environ.setdefault("FRAMING_DETACHED", "1")         # 콘솔을 떼지 않는다 — 서버 소식이 보이고 Ctrl+C 로 끝낼 수 있게
 
-from framing import core  # noqa: E402
+from framing import core, env  # noqa: E402
 
 if os.environ.get("FRAMING_LAUNCHER"):
-    core.SELF = Path(os.environ["FRAMING_LAUNCHER"])   # 도움말 이름 · 바탕화면 바로가기가 Framing.bat 을 가리키게
+    env.SELF = Path(os.environ["FRAMING_LAUNCHER"])   # 도움말 이름 · 바탕화면 바로가기가 Framing.bat 을 가리키게
 
 if __name__ == "__main__":
     sys.exit(core.main())

@@ -2,7 +2,7 @@
 import json, multiprocessing, os, sys, traceback, uuid
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))   # app/ — framing 패키지 자리 (소스로 돌릴 때)
-from framing import core
+from framing import core, env
 from mac_runtime import MacPaths, AppLog, NativeDialogs, ChildProcesses, error_alert
 
 class BundledFFmpeg(core.FFmpegTool):
@@ -84,10 +84,11 @@ class MacApplication:
 
 def configure(paths):
     paths.prepare()
-    core.HERE=paths.resources
-    core.FFMPEG_HOME=paths.resources/'_ffmpeg'
-    core.RIFE_HOME=paths.resources/'_rife'
-    core.BUILD=core.BUILD+'-mac'
+    # 실행 환경 값은 framing.env 에 — 엔진의 다른 모듈이 거기서 읽는다
+    env.HERE=paths.resources
+    env.FFMPEG_HOME=paths.resources/'_ffmpeg'
+    env.RIFE_HOME=paths.resources/'_rife'
+    env.BUILD=env.BUILD+'-mac'
     core.CrashNote.SPOT=paths.logs/'오류.txt'
 
 def main():

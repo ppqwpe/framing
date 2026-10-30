@@ -2,11 +2,9 @@
 from pathlib import Path
 import dataclasses,json,sys,types,unittest,tempfile,subprocess,shutil,re,os
 HERE=Path(__file__).resolve().parent
-APP=Path(__file__).resolve().parents[1]/'framing'/'core.py'
 LAUNCHER=Path(__file__).resolve().parents[2]/'Framing.bat'
-source=APP.read_text(encoding='utf-8')
-m=types.ModuleType('framing_release_test');m.__file__=str(APP);sys.modules[m.__name__]=m
-exec(compile(source,str(APP),'exec'),m.__dict__)
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from framing import core as m
 baseline=json.loads((HERE/'compat_baseline.json').read_text(encoding='utf-8'))
 class ReleaseTests(unittest.TestCase):
  # Framing.bat 은 app/python 의 내장 파이썬으로만 돈다. 깃에서 막 받은 폴더처럼 런타임이 없으면 건너뛴다

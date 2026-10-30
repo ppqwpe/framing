@@ -74,7 +74,7 @@ One engine, three ways to run it.
 | `Framing.bat` | Windows launcher: embedded Python, opens the UI in the browser |
 | `Framing.command` | Mac launcher from source: venv + Homebrew FFmpeg, same UI in the browser |
 | `app/main.py` | Entry point both launchers run; with arguments it is the command-line tool |
-| `app/framing/` | The engine (`core.py`) and the whole desktop UI in one file (`ui.html`) |
+| `app/framing/` | The engine, split by job (see below), and the whole desktop UI in one file (`ui.html`) |
 | `app/mac/` | Native Mac app: pywebview window, PyInstaller spec and build script for `Framing.app` |
 | `app/web/` | Web service: FastAPI server, job worker, browser UI, Dockerfile, Compose and Caddy config |
 | `app/tests/` | Automated tests, including SHOTKIT-era file compatibility |
@@ -82,6 +82,23 @@ One engine, three ways to run it.
 | `app/icon/` | App and shortcut icon |
 | `app/licenses/` | License texts for bundled components |
 | `logo/` | Logo PNGs and the mascot source image |
+
+### Inside `app/framing`
+
+| Module | What's there |
+|---|---|
+| `env.py` | Build number, launcher path, where bundled FFmpeg and RIFE live, dependency setup, `cv2` / `numpy` |
+| `errors.py` · `options.py` · `util.py` · `i18n.py` | Errors, job options, console and path helpers, the Korean → English strings |
+| `media.py` · `frames.py` | Reading video and sequences, ffprobe, running FFmpeg; saving frames, colour range, mattes |
+| `retime.py` · `plate.py` | Retime plans, notes and interpolation engines; RIFE plates, stretch notes, hold and revert |
+| `job.py` · `registry.py` | The `Job` base class and the table of job names (old names included) |
+| `jobs_*.py` | One file per tool: extract, reverse, retime, convert, compare, rename, plate, review |
+| `sequence.py` · `cuts.py` · `audit.py` · `compare_page.py` · `compare_export.py` | Pieces those jobs share |
+| `cli.py` · `app.py` · `api.py` · `server.py` | Command line, job runner, the API the UI calls, the local HTTP server |
+| `checkup.py` · `desktop.py` | Diagnostics and first-run setup; the UI document, window, desktop shortcut and `main()` |
+| `core.py` | One import that exposes every name above, for the launchers, the Mac app, the web worker and the tests |
+
+Launchers change runtime settings on `framing.env` (`env.SELF`, `env.BUILD`, `env.FFMPEG_HOME`, `env.RIFE_HOME`), not on `core`, so every module sees them.
 
 To change the logo, edit `app/tools/make_logo.py` and run it. It rewrites the icons, the PNGs in `logo/`, and the pixel mascot between the `// <alien>` markers in `app/framing/ui.html`.
 

@@ -1,12 +1,13 @@
 import ast,json,re,threading,unittest,urllib.request,urllib.error
 from pathlib import Path
 from typing import Optional,Callable
-s=(Path(__file__).resolve().parents[1]/'framing'/'core.py').read_text(encoding='utf-8')
-t=ast.parse(s); ns=globals()
-classes={'FramingError','LocalRequestPolicy','ApiDispatcher','HttpByteRange','LocalServer','EventBus','UiDocument','RetimeEngineFactory'}
-for n in t.body:
- if isinstance(n,ast.ClassDef) and n.name in classes:
-  exec(compile(ast.Module(body=[n],type_ignores=[]),'<isolated>', 'exec'),ns)
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from framing.errors import FramingError
+from framing.server import LocalRequestPolicy, ApiDispatcher, HttpByteRange, LocalServer, EventBus
+from framing.desktop import UiDocument
+from framing.jobs_retime import RetimeEngineFactory
+t=ast.parse((Path(__file__).resolve().parents[1]/'framing'/'desktop.py').read_text(encoding='utf-8'))
 html=(Path(__file__).resolve().parents[1]/'framing'/'ui.html').read_text(encoding='utf-8')
 class FakeApi:
  def bind_emitter(self,*args): pass
@@ -80,7 +81,13 @@ class EngineTests(unittest.TestCase):
    def supports(sample):return sample=='8bit'
   class Quiet:
    info=warn=staticmethod(lambda *args:None)
-  globals().update(DuplicateEngine=Dup,TailHoldEngine=Hold,BlendEngine=Blend,MotionEngine=Motion,Console=Quiet)
+  # 팩토리는 자기 모듈(framing.jobs_retime)의 이름을 본다 — 그 자리를 가짜 엔진으로 바꿔 끼운다
+  import framing.jobs_retime as factory_module
+  from unittest.mock import patch
+  fakes=dict(DuplicateEngine=Dup,TailHoldEngine=Hold,BlendEngine=Blend,MotionEngine=Motion,Console=Quiet)
+  patches=[patch.object(factory_module,k,v,create=True) for k,v in fakes.items()]
+  for x in patches:x.start()
+  self.addCleanup(lambda:[x.stop() for x in patches])
   slow=SimpleNamespace(slowing=True,unchanged=False)
   fast=SimpleNamespace(slowing=False,unchanged=False)
   for ff,mode,plan,matte,sample,expected in [(True,'auto',slow,False,'8bit',Motion),(True,'auto',slow,True,'8bit',Dup),(True,'auto',fast,False,'8bit',Dup),(False,'motion',slow,False,'8bit',Blend),(True,'motion',slow,False,'16bit',Blend),(True,'hold',fast,False,'8bit',Dup)]:

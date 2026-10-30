@@ -2,10 +2,9 @@ from pathlib import Path
 import sys,types,json,shutil,subprocess,hashlib,tempfile
 ROOT=Path(tempfile.gettempdir())/'framing_regression'
 (ROOT/'work').mkdir(parents=True,exist_ok=True)
-APP=Path(__file__).resolve().parents[1]/'framing'/'core.py'
 def load_app():
-    module=types.ModuleType('framing_test');module.__file__=str(APP);sys.modules[module.__name__]=module
-    exec(compile(APP.read_text(encoding='utf-8'),str(APP),'exec'),module.__dict__)
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+    from framing import core as module
     return module
 
 import unittest,tempfile,contextlib,io
