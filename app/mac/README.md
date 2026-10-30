@@ -69,7 +69,7 @@ bash Mac에서_빌드.command \
 
 ## 코드 구조
 
-`src/mac_app.py`는 앱 시작·Mac용 API·화면을, `src/mac_runtime.py`는 경로·선택 창·로그·프로세스 종료를 맡습니다. `src/framing_core.py`는 기존 처리 엔진이며 Mac의 RIFE 실행 파일 구분만 추가했습니다. Windows 앱과 웹앱 파일은 수정하지 않았습니다.
+`mac_app.py`는 앱 시작·Mac용 API·화면을, `mac_runtime.py`는 경로·선택 창·로그·프로세스 종료를 맡습니다. 처리 엔진은 Windows·웹과 같은 `app/framing/core.py`를 씁니다.
 
 회귀 검사:
 

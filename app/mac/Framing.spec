@@ -9,7 +9,7 @@ binaries=[(str(ffmpeg),'_ffmpeg'),(str(ffprobe),'_ffmpeg')]
 datas=collect_data_files('webview')+[(str(root/'build-metadata'),'build-metadata')]
 identity=os.environ.get('FRAMING_CODESIGN_IDENTITY') or None
 app_dir=root.parent   # app/ — framing 패키지와 화면(ui.html)
-datas+=[(str(app_dir/'framing'/'ui.html'),'framing')]
+datas+=[(str(app_dir/'framing'/'ui.html'),'framing'),(str(app_dir/'icon'/'framing.ico'),'icon')]
 a=Analysis([str(root/'mac_app.py')],pathex=[str(root),str(app_dir)],binaries=binaries,datas=datas,
     hiddenimports=['webview.platforms.cocoa','AppKit','Foundation','WebKit','Quartz','objc','cv2','numpy','PIL','mac_diagnostics','framing','framing.core'],
     excludes=['tkinter','PyQt5','PyQt6','PySide2','PySide6','webview.platforms.winforms','clr','pythonnet','matplotlib','scipy','pandas'],

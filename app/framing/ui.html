@@ -95,7 +95,7 @@
   #home { display:flex; align-items:center; justify-content:center;
           min-height:calc(100vh - 120px); }
   #hero { text-align:center; max-width:820px; width:100%; }
-  /* 첫 화면의 고양이. 끌어다 놓는 동안 살짝 커진다 — 여기가 받는 자리라는 표시 */
+  /* 첫 화면의 마스코트. 끌어다 놓는 동안 살짝 커진다 — 여기가 받는 자리라는 표시 */
   .catmark { line-height:0; margin:0 0 18px; transition:transform .18s ease; }
   body.dropping .catmark { transform:scale(1.08); }
   #hero .say { font-size:17px; margin:0 0 6px; }
@@ -1473,77 +1473,53 @@ const Diagram = (() => {
  * 생겨서 화면의 인상이 흔들린다 — 픽셀은 어디서나 같다.
  */
 const Pix = (() => {
-  const PAL = { c: '#f2e7d0', o: '#eda963', r: '#e56b5d', y: '#f3cf6e',
+  // <alien> make_logo.py 가 채운다 — 손으로 고치지 말 것
+  const ALIEN_PAL = { A: '#e2f2b1', B: '#c6e691', C: '#b7de87', D: '#bbcb88', E: '#8cc573', F: '#62a359', G: '#586c3e', H: '#dc281e', I: '#dc281d', J: '#db281d', K: '#501c13', L: '#000000' };
+  const ALIEN = [
+    'HIIIIII..................IIIIIIH',
+    'IJHHHHH..................HHHHHJI',
+    'IH............................HI',
+    'IH............................HI',
+    'IH...E........................HI',
+    'IH..EACC......................HI',
+    'IH..FEFFC...............FEAE..HI',
+    '........EB.............FEFCE....',
+    '.........CD...........EBF.F.....',
+    '.........EB...........CE........',
+    '..........CD.........EB.........',
+    '..........EA........EA..........',
+    '..........FBE.......CB..........',
+    '...........BDEECCEFFAC..........',
+    '..........FCBCCCCCEEA...........',
+    '.........FEABCBCCAABAE..........',
+    '........FCBABCCBAAAAABE.........',
+    '........EBBBBCBBAAAAAAB.........',
+    '.......FFFCACCBAAAAAAACE........',
+    '......FGLGGABBAAABAAAAAC........',
+    '......FLLKKAAAAAEKKDAAAB........',
+    '......EKLLEAAAADLLGKDBCB........',
+    '......EDDBBDEAAFLLLLEAAB........',
+    '......FDDDBDEABELLLLDAAE........',
+    '.......ECCCCCCBBDDDDABBF........',
+    'IH......EECCCCCCBDBABBE.......HI',
+    'IH........FECCCCCCBCEF........HI',
+    'IH...........FECCCEF..........HI',
+    'IH............................HI',
+    'IH............................HI',
+    'IJHHHHH..................HHHHHJI',
+    'HIIIIII..................IIIIIIH',
+  ];
+  // </alien>
+  const PAL = { ...ALIEN_PAL, c: '#f2e7d0', o: '#eda963', r: '#e56b5d', y: '#f3cf6e',
                 g: '#a4cf82', s: '#86c5da', w: '#ffffff', b: '#b5895c',
                 k: '#3a352c', d: '#232629',
-                // 로고 고양이 — 그림 파일 없이 여기 색으로만 산다
+                // 예전 마스코트 색 — 다른 아이콘이 함께 쓴다
                 p: '#af8fcc', l: '#c0a7d6', m: '#6e608f',
                 a: '#e4c365', i: '#e2efd3', f: '#fff6de', n: '#27232c' };
   const MAPS = {
-    /**
-     * 로고 고양이. 58×56 칸.
-     *
-     * 그림 파일을 따로 두지 않고 다른 아이콘과 같은 방식으로 찍습니다 —
-     * Framing 은 파일 하나로 도는 프로그램이라 옆에 png 를 두면 그 파일이
-     * 빠진 채로 전달됩니다.
-     */
-    cat: [
-      '....................n.....................................',
-      '...................na.....................................',
-      '...................nan..........nn........................',
-      '...............n...nan.........naa........................',
-      '..............na...nan.......nn.na...nn...................',
-      '..............na...nan.......na.na..npn...................',
-      '..............na..naan.nnn...na.nan.npn...................',
-      '.............nan..nana.nan...na.nannppn...................',
-      '.............nan..nana.nan...na.nannppp...................',
-      '.............nan.nanna..na...na.nanpppp...................',
-      '.............nan.nannan.nannnaannnapppp...................',
-      '.............na..nannan.naaaaaaaanappapn..................',
-      '...........nnna..nannannpaaaaaaaaaapaapn..................',
-      '..........nppan..nannapppaaaaaaaaaapaapn..................',
-      '..........nppan..nappappppaaaaaaaaaaappn..................',
-      '..........nppan.nappplapppaaaaaaaaaaappn..................',
-      '.........nppaapnpallllppppaaaaaaaaaaappp..................',
-      '.........nppaapmnnpllpppppaaaaaaaaaaappp..................',
-      '.........nppaaniiipmlppppppaaaaaaaaaaapp..................',
-      '........npppaaimiiippppppppaaaaaaaaaaapp..................',
-      '........nppppminfiiipppppppaaaaaaaaaaaapn.................',
-      '........nppppninfiiinppppppaaaaaaaaaaaapn.................',
-      '.......npppllninmiiinppppppaaaaaaaaaaaaan.........n.......',
-      '......nppllllniniiiinppppppaaaaaaaaaaaaan......nnnmnnn....',
-      '.....npplllllmipiiiipppppppamniinaaaaaaan.....nmpppppmnn..',
-      '....npplllllllniiiinpppppppaniiiinaaaaaan....npppppppppm..',
-      '....npplllllllpninnppppppppaiiniimaaaaaan...nmppppppppppn.',
-      '....nplllllllpppmppppppppppmiiniiiaaaaaan...npppmnnnmpppmn',
-      '....npllllpppppmnnnppppppppmiiniiiaaaaaa....npppn.nnnmpppn',
-      '....npppppppppniiiinpppppppaiiniinaaaaan....npppnnmmmnpppm',
-      '....nppppppppmiipiiipppppppaminiinaaaaan....npppmnpppmpppm',
-      '....nppppppppiiiniiimppppppampiinaaaaaan....nmpppppppmpppn',
-      '....nppppppppiiiniiiippppppaaannaaaaaaapnn...nppppppmmpppn',
-      '....npppppppmiiifliiippppppaaaaaaaaaaaapppn...nmpppmmpppm.',
-      '....nppppppppiiiniiiippppppaaaaaaaaaaaaapppn.nnnnmmppppmn.',
-      '...nppppppmmmiiiniiinppppppaaaaaaaaammmappppnmmmpppppppn..',
-      '..nppppppmpppmiimiiimppppppaaaaaaamaaaaamppppppppppppmn...',
-      '.npppppmmmmppmiiiiiipppppppanaaaaaaammaaampppppppppmmn....',
-      '.nppmmpppmpppmnniipmpnnppppnaaaaaamaaaamampppppmmnnn......',
-      '.npmpppppppppppnnnnnnppnnnnaaaaaaaaaaaaammmpppn...........',
-      'nppmpnnppppppppppppnppppppppaaaaaaaaaaaaanmpppn...........',
-      'nppmpnnppmppppppppppppppppppaaaaaaaaaaaaamnnppn...........',
-      'nppppn.nnmpppppppppppppppppmaaaaaaaaaaaaamnnppn...........',
-      'nppppn..nmppppppppppppppmmmmaaaaaaaaaaaammnnppp...........',
-      '.npmn....n.nnppppppppmmmmmmmaaaaaaaaaaaann.nppn...........',
-      '..nm........nnnpmmmmmmmmmmmmaaaaaaaaaaannn.nppn...........',
-      '..nn.......npppnmmmmmmmmmmmmaaaaaaaaaaann...nn............',
-      '...........npppnnmmmmmmmmmmmaaaaaaaaaan...................',
-      '...........npppp.nmmmmmmmmmmaaaaaaaaaan...................',
-      '............npppn.nmmmmmmmmmaaaaaaaaaa....................',
-      '............npppn...nnmmmmmmaaaaaaaaan....................',
-      '............npppnnnn...nnmmmaaaaaaaan.....................',
-      '............npppppppn.....nmaaaaaaapp.....................',
-      '............npppppppn.......naaaaappp.....................',
-      '.............npppppn...........nppppn.....................',
-      '..............nnpnn.............nnnn......................'],
+    // 마스코트 — ALIENMEOW 외계인 + 뷰파인더 모서리. 앱 아이콘과 같은 그림을
+    // make_logo.py 가 픽셀 지도로 줄여 위 ALIEN 에 넣는다 (이름 cat 은 화면 코드가 부르는 그대로)
+    cat: ALIEN,
     film: ['cccccccccccc','c.c.cccc.c.c','cccccccccccc','c..oooooo..c',
            'c..owwooo..c','c..oooooo..c','cccccccccccc','c.c.cccc.c.c',
            'cccccccccccc'],
