@@ -1,0 +1,6 @@
+{$SHOTKIT_DOMAIN} {
+    request_body {
+        max_size 513MB
+    }
+    reverse_proxy app:8000
+}

@@ -1,0 +1,514 @@
+{
+  "defaults": {
+    "language": "kr",
+    "frame_format": "both",
+    "jpeg_quality": 95,
+    "at": "",
+    "every": 0,
+    "count": 0,
+    "levels": "auto",
+    "out_dir": null,
+    "fps": 24,
+    "make_mp4": true,
+    "convert_to": "mp4",
+    "image_format": "png",
+    "prores_movie": false,
+    "gif_fps": 12,
+    "gif_width": 640,
+    "gif_loop": true,
+    "cut_mode": "auto",
+    "cut_threshold": 10,
+    "cut_min_seconds": 0.5,
+    "cut_interval": 5,
+    "cut_times": "",
+    "view": "wipe",
+    "rename_rules": [],
+    "audit_freeze_seconds": 0.5,
+    "audit_sensitivity": "balanced",
+    "rife_program": "",
+    "plate_no_snap": false,
+    "stretch_note": "",
+    "drop_frames": "",
+    "hold_where": "tail",
+    "contact_audit": false,
+    "rename_mode": "pattern",
+    "rename_pattern": "장면_{n}",
+    "rename_start": 1,
+    "rename_lang": "kr",
+    "rename_find": "",
+    "rename_replace": "",
+    "rename_prefix": "",
+    "rename_suffix": "",
+    "rename_cut_head": 0,
+    "rename_cut_tail": 0,
+    "keep_compare": false,
+    "h265": false,
+    "target_frames": 0,
+    "target_seconds": 0.0,
+    "speed": 0.0,
+    "retime_mode": "auto",
+    "no_snap": false,
+    "retime_note": false,
+    "delivery": "auto",
+    "delivery_shot": "",
+    "delivery_task": "",
+    "delivery_version": 0,
+    "level": "medium",
+    "max_height": 0,
+    "force_encode": false,
+    "overwrite": false,
+    "recursive": true
+  },
+  "jobs": {
+    "extract": {
+      "key": "extract",
+      "aliases": [
+        "keyframes",
+        "frames",
+        "key",
+        "sequence",
+        "seq"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "keyframes": {
+      "key": "extract",
+      "aliases": [
+        "keyframes",
+        "frames",
+        "key",
+        "sequence",
+        "seq"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "frames": {
+      "key": "extract",
+      "aliases": [
+        "keyframes",
+        "frames",
+        "key",
+        "sequence",
+        "seq"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "key": {
+      "key": "extract",
+      "aliases": [
+        "keyframes",
+        "frames",
+        "key",
+        "sequence",
+        "seq"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "sequence": {
+      "key": "extract",
+      "aliases": [
+        "keyframes",
+        "frames",
+        "key",
+        "sequence",
+        "seq"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "seq": {
+      "key": "extract",
+      "aliases": [
+        "keyframes",
+        "frames",
+        "key",
+        "sequence",
+        "seq"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "retime": {
+      "key": "retime",
+      "aliases": [
+        "speed",
+        "stretch"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "speed": {
+      "key": "retime",
+      "aliases": [
+        "speed",
+        "stretch"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "stretch": {
+      "key": "retime",
+      "aliases": [
+        "speed",
+        "stretch"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "reverse": {
+      "key": "reverse",
+      "aliases": [
+        "rev"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "rev": {
+      "key": "reverse",
+      "aliases": [
+        "rev"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "convert": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "mp4": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "to-mp4": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "mov": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "to-mov": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "prores": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "nuke": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "shrink": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "compress": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "small": {
+      "key": "convert",
+      "aliases": [
+        "mp4",
+        "to-mp4",
+        "mov",
+        "to-mov",
+        "prores",
+        "nuke",
+        "shrink",
+        "compress",
+        "small"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "compare": {
+      "key": "compare",
+      "aliases": [
+        "diff",
+        "ab"
+      ],
+      "paired": true,
+      "folder": true
+    },
+    "diff": {
+      "key": "compare",
+      "aliases": [
+        "diff",
+        "ab"
+      ],
+      "paired": true,
+      "folder": true
+    },
+    "ab": {
+      "key": "compare",
+      "aliases": [
+        "diff",
+        "ab"
+      ],
+      "paired": true,
+      "folder": true
+    },
+    "rename": {
+      "key": "rename",
+      "aliases": [
+        "name"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "name": {
+      "key": "rename",
+      "aliases": [
+        "name"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "audit": {
+      "key": "audit",
+      "aliases": [],
+      "paired": false,
+      "folder": true
+    },
+    "contact": {
+      "key": "contact",
+      "aliases": [],
+      "paired": false,
+      "folder": true
+    },
+    "cuts": {
+      "key": "cuts",
+      "aliases": [
+        "split",
+        "scenes"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "split": {
+      "key": "cuts",
+      "aliases": [
+        "split",
+        "scenes"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "scenes": {
+      "key": "cuts",
+      "aliases": [
+        "split",
+        "scenes"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "plate": {
+      "key": "plate",
+      "aliases": [
+        "rife",
+        "plate-rife"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "rife": {
+      "key": "plate",
+      "aliases": [
+        "rife",
+        "plate-rife"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "plate-rife": {
+      "key": "plate",
+      "aliases": [
+        "rife",
+        "plate-rife"
+      ],
+      "paired": false,
+      "folder": true
+    },
+    "revert": {
+      "key": "revert",
+      "aliases": [
+        "unstretch",
+        "shrink-back"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "unstretch": {
+      "key": "revert",
+      "aliases": [
+        "unstretch",
+        "shrink-back"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "shrink-back": {
+      "key": "revert",
+      "aliases": [
+        "unstretch",
+        "shrink-back"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "hold": {
+      "key": "hold",
+      "aliases": [
+        "freeze",
+        "홀드"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "freeze": {
+      "key": "hold",
+      "aliases": [
+        "freeze",
+        "홀드"
+      ],
+      "paired": false,
+      "folder": false
+    },
+    "홀드": {
+      "key": "hold",
+      "aliases": [
+        "freeze",
+        "홀드"
+      ],
+      "paired": false,
+      "folder": false
+    }
+  },
+  "targets": [
+    "mp4",
+    "mov",
+    "nuke",
+    "delivery",
+    "small",
+    "image",
+    "movie",
+    "gif",
+    "frames"
+  ],
+  "deliveries": []
+}

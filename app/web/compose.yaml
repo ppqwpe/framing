@@ -1,0 +1,36 @@
+services:
+  app:
+    build: .
+    environment:
+      SHOTKIT_ACCESS_PASSWORD: ${SHOTKIT_ACCESS_PASSWORD:?Set a password in .env}
+      SHOTKIT_HTTPS: "1"
+    volumes:
+      - jobs:/data
+    networks: [processing]
+    restart: unless-stopped
+    mem_limit: 8g
+    cpus: 4
+    pids_limit: 256
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:size=512m]
+  proxy:
+    image: caddy:2
+    environment:
+      SHOTKIT_DOMAIN: ${SHOTKIT_DOMAIN:?Set your domain in .env}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [processing, public]
+    restart: unless-stopped
+networks:
+  processing:
+    internal: true
+  public:
+volumes:
+  jobs:
+  caddy_data:
+  caddy_config:

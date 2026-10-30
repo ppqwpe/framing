@@ -1,0 +1,15 @@
+# 내장 런타임 — 깃에는 없고 배포 zip 에만 (README 참고)
+app/python/
+app/lib/
+app/mac/.venv/
+
+# 쓰다가 생기는 것
+__pycache__/
+*.pyc
+app/work/
+results/
+app/web/data/
+app/web/.env
+app/mac/build/
+app/mac/dist/
+*.zip

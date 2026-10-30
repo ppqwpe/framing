@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {renamePlan,route,captureTimes,crc32,zipStored} from '../static/local.js';
+assert.equal(crc32(new TextEncoder().encode('123456789')),0xcbf43926);
+assert.throws(()=>renamePlan([{name:'a.mp4'},{name:'A.mp4'}],{style:'affix',prefix:'',suffix:''}),/겹칩니다/);
+assert.equal(renamePlan([{name:'원본.MP4',file:new Blob(['original'])}],{style:'number',name:'SHOT',start:1,width:3})[0].name,'SHOT_001.MP4');
+assert.equal(route('compare',{format:'video'}),'server');
+assert.equal(route('compare',{format:'frame'}),'local');
+assert.equal(route('extract',{pick:'all',frame_format:'png'}),'server');
+assert.equal(route('rename',{},true),'server');
+assert.deepEqual(captureTimes(8,{pick:'count',count:2}),[2,6]);
+assert.throws(()=>captureTimes(8,{pick:'at',at:'9'}));
+assert.throws(()=>captureTimes(8,{pick:'count',count:101}));
+const abort=new AbortController();abort.abort();
+await assert.rejects(zipStored([{name:'a',blob:new Blob(['a'])}],abort.signal),{name:'AbortError'});
+console.log('Browser-local validation tests passed');
