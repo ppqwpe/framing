@@ -1,0 +1,12 @@
+web/data
+**/__pycache__
+web/.env
+web/tests
+python
+lib
+ffmpeg
+rife
+mac
+tests
+work
+*.zip

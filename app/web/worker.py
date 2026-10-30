@@ -1,7 +1,8 @@
 """One isolated process per job; desktop UI and local-file RPC are never exposed."""
 import json, os, shutil, sys, traceback, zipfile
 from pathlib import Path
-import framing_core as core
+sys.path.insert(0,str(Path(__file__).resolve().parent.parent))   # app/ — framing 패키지 자리
+from framing import core
 from domain import IMAGE, NOTES, VIDEO, rename_rules
 
 def execute(request_path):

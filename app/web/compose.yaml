@@ -1,6 +1,8 @@
 services:
   app:
-    build: .
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
     environment:
       FRAMING_ACCESS_PASSWORD: ${FRAMING_ACCESS_PASSWORD:?Set a password in .env}
       FRAMING_HTTPS: "1"

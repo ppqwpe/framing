@@ -47,7 +47,7 @@ def main():
     if args.notary_profile and not args.identity:raise RuntimeError('공증에는 Developer ID 서명 인증서가 필요합니다.')
     ffmpeg=native_tool('ffmpeg',arch);ffprobe=native_tool('ffprobe',arch)
     from PIL import Image
-    Image.open(ROOT/'assets'/'icon.ico').convert('RGBA').resize((1024,1024)).save(ROOT/'assets'/'Framing.icns')
+    Image.open(ROOT.parent.parent/'logo'/'framing_icon_1024.png').convert('RGBA').resize((1024,1024)).save(ROOT/'assets'/'Framing.icns')
     metadata=ROOT/'build-metadata';metadata.mkdir(exist_ok=True)
     (metadata/'ffmpeg-license.txt').write_text(text([ffmpeg,'-L']),encoding='utf-8')
     (metadata/'ffmpeg-build.txt').write_text(text([ffmpeg,'-version']),encoding='utf-8')

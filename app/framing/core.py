@@ -826,7 +826,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Optional, Sequence
 
-BUILD = "2026.10.02-app.4"          # 어느 판을 쓰고 있는지 화면에서 보이게
+BUILD = "1.0"          # 어느 판을 쓰고 있는지 화면에서 보이게
 SELF = Path(sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
 
 

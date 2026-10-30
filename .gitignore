@@ -1,7 +1,8 @@
 # 내장 런타임 — 깃에는 없고 배포 zip 에만 (README 참고)
 app/python/
 app/lib/
-app/mac/.venv/
+app/.venv-mac/
+app/mac/.venv-mac/
 
 # 쓰다가 생기는 것
 __pycache__/
