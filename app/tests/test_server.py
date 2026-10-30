@@ -7,7 +7,7 @@ classes={'ShotkitError','LocalRequestPolicy','ApiDispatcher','HttpByteRange','Lo
 for n in t.body:
  if isinstance(n,ast.ClassDef) and n.name in classes:
   exec(compile(ast.Module(body=[n],type_ignores=[]),'<isolated>', 'exec'),ns)
-html=next(ast.literal_eval(n.value) for n in t.body if isinstance(n,ast.Assign) and any(isinstance(a,ast.Name) and a.id=='UI_HTML' for a in n.targets))
+html=(Path(__file__).resolve().parents[1]/'framing'/'ui.html').read_text(encoding='utf-8')
 class FakeApi:
  def bind_emitter(self,*args): pass
  def bind_server(self,*args): pass
@@ -55,7 +55,7 @@ class SecurityTests(unittest.TestCase):
  def test_document(self):
   self.assertIn('X-Shotkit-Token',self.document);self.assertEqual(self.document.count('window.__shotkitToken='),1)
  def test_api_parity(self):
-  methods=ast.literal_eval(re.search(r'const API_METHODS = (\[.*?\]);',s,re.S).group(1))
+  methods=ast.literal_eval(re.search(r'const API_METHODS = (\[.*?\]);',html,re.S).group(1))
   self.assertEqual(set(methods),set(ApiDispatcher.METHODS))
  def test_body_limits(self):
   p=LocalRequestPolicy()
