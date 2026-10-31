@@ -1238,10 +1238,26 @@ const api = () => {
   let raw = null;
   if (window.pywebview && window.pywebview.api) raw = window.pywebview.api;
   else if (window.__stubApi) raw = window.__stubApi;
-  else if (location.protocol.startsWith('http')) raw = makeHttpApi();
+  else if (location.protocol.startsWith('http')) raw = withNativePickers(makeHttpApi());
   if (raw) _api = new ApiGuard(raw, _report).wrap();
   return _api;
 };
+
+/** 끌어다 놓은 파일의 실제 경로. pywebview · Electron(app/electron/preload.js) 이 알려 준다. */
+function filePath(file) {
+  if (window.framingNative) return window.framingNative.pathFor(file) || '';
+  return file.pywebviewFullPath || file.path || '';
+}
+
+/** Electron 창이면 파일 · 폴더 고르기를 OS 대화상자로 한다 (내장 파이썬에는 tkinter 가 없다). */
+function withNativePickers(shim) {
+  const native = window.framingNative;
+  if (!native) return shim;
+  return Object.assign(shim, {
+    pick_files: () => native.pickFiles(),
+    pick_folder: () => native.pickFolder(),
+  });
+}
 
 /** 브라우저 모드에서는 이벤트를 주기적으로 가져와야 한다. */
 async function pumpEvents() {
@@ -1333,7 +1349,7 @@ class DropZone {
     const files = (event.dataTransfer && event.dataTransfer.files) || [];
     const found = [];
     for (const file of files) {
-      const full = file.pywebviewFullPath || file.path;
+      const full = filePath(file);
       if (full) found.push(full);
     }
     return found;
@@ -4010,7 +4026,7 @@ class Framing {
     field.ondragleave = () => field.classList.remove('over');
     field.ondrop = (e) => {
       e.preventDefault(); field.classList.remove('over');
-      const spot = [...(e.dataTransfer.files || [])].map((f) => f.path).find(Boolean);
+      const spot = [...(e.dataTransfer.files || [])].map(filePath).find(Boolean);
       if (spot) this._takeNote(spot);
     };
     row.append(field);

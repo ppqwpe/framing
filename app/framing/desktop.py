@@ -275,8 +275,11 @@ class FramingApp:
         """
         server = LocalServer(self._api, self._ui)
         url = server.start()
+        mode = (os.environ.get("FRAMING_MODE") or "").lower()
         try:
-            if (os.environ.get("FRAMING_MODE") or "").lower() != "browser":
+            if mode == "electron":
+                return self._serve_electron(url, server)
+            if mode != "browser":
                 try:
                     DesktopWindow(self._api, url).open()
                     return 0
@@ -290,6 +293,24 @@ class FramingApp:
             return 0
         finally:
             server.stop()
+
+    def _serve_electron(self, url: str, server: LocalServer) -> int:
+        """
+        Electron 창(app/electron)이 이 프로세스를 띄운다. 주소는 한 줄로 알려 주고,
+        창 쪽이 stdin 을 닫으면(창을 닫았거나 Electron 이 죽었으면) 같이 끝난다.
+        """
+        def watch() -> None:
+            try:
+                while sys.stdin.read(4096):
+                    pass
+            except (OSError, ValueError):
+                pass
+            self._api.quit()
+
+        threading.Thread(target=watch, daemon=True).start()
+        print(f"FRAMING_URL={url}", flush=True)
+        server.wait()
+        return 0
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
