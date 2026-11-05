@@ -50,6 +50,8 @@ class Options:
     make_mp4: bool = True
     convert_to: str = "mp4"             # convert: mp4 | mov | nuke | small | image | movie
     image_format: str = "png"           # convert: 이미지 목적지 형식
+    target_fps: float = 24              # convert fps: 목표 프레임레이트 (23.976 → 24000/1001)
+    fps_mode: str = "conform"           # convert fps: conform | dup | blend | motion
     prores_movie: bool = False          # convert: 시퀀스를 누크용으로 묶을지
     gif_fps: float = 12
     gif_width: int = 640

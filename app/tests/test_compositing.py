@@ -99,6 +99,70 @@ class TimecodeAndAudioTests(unittest.TestCase):
         self.assertEqual(ProbeInfo().timecode_args(), [])
 
 
+class FpsTargetTests(unittest.TestCase):
+    def test_ntsc_rates_are_exact_fractions(self):
+        from framing.jobs_convert import FpsTarget
+        self.assertEqual(FpsTarget.rate(23.976)[0], "24000/1001")
+        self.assertEqual(FpsTarget.rate("29.97")[0], "30000/1001")
+        self.assertEqual(FpsTarget.rate(59.94)[0], "60000/1001")
+        self.assertEqual(FpsTarget.rate(25)[0], "25/1")
+        with self.assertRaises(core.FramingError):
+            FpsTarget.rate(0)
+
+    def test_tempo_splits_outside_atempo_range(self):
+        from framing.jobs_convert import FpsTarget
+        self.assertEqual(FpsTarget.tempo(0.96), "atempo=0.960000")
+        self.assertEqual(FpsTarget.tempo(0.4), "atempo=0.5,atempo=0.800000")
+        self.assertEqual(FpsTarget.tempo(5.0), "atempo=2.0,atempo=2.0,atempo=1.250000")
+
+
+@unittest.skipUnless(HAVE_FF, "ffmpeg 이 없습니다")
+class FpsConvertRunTests(unittest.TestCase):
+    """25fps ProRes 를 24 로: 컨폼은 장 수 그대로, 복제는 길이 그대로."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="framing_fps_"))
+        cls.src = cls.tmp / "plate_25.mov"
+        subprocess.run([FF.find("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i",
+                        "testsrc2=size=320x180:rate=25:duration=2", "-f", "lavfi", "-i",
+                        "sine=sample_rate=48000:duration=2", "-c:v", "prores_ks", "-profile:v", "3",
+                        "-pix_fmt", "yuv422p10le", "-timecode", "01:00:00:00", "-c:a", "pcm_s24le",
+                        "-shortest", str(cls.src)], check=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def convert(self, mode):
+        out = self.tmp / mode
+        run = subprocess.run([sys.executable, str(APP / "main.py"), "convert", str(self.src), "--to", "fps",
+                              "--target-fps", "24", "--fps-mode", mode, "--out", str(out), "--no-pause"],
+                             stdin=subprocess.DEVNULL, capture_output=True)
+        self.assertEqual(run.returncode, 0, run.stdout[-400:])
+        made = next(out.glob("*.mov"))
+        self.assertEqual(made.name, "plate_25_24fps.mov")
+        return FF.probe(made), made
+
+    def frames(self, path):
+        out = subprocess.run([FF.find("ffprobe"), "-v", "error", "-count_frames", "-select_streams", "v",
+                              "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(path)],
+                             capture_output=True, text=True)
+        return int(out.stdout.split()[0])
+
+    def test_conform_keeps_every_frame(self):
+        info, made = self.convert("conform")
+        self.assertAlmostEqual(info.fps, 24.0)
+        self.assertEqual(self.frames(made), 50)
+        self.assertEqual(info.timecode, "01:00:00:00")
+        self.assertEqual(info.acodec, "pcm_s24le")
+
+    def test_dup_keeps_length(self):
+        info, made = self.convert("dup")
+        self.assertEqual(self.frames(made), 48)
+        self.assertEqual(info.vcodec, "prores")
+
+
 @unittest.skipUnless(HAVE_FF, "ffmpeg 이 없습니다")
 class ExrDpxIoTests(unittest.TestCase):
     """이 OpenCV 는 EXR · DPX 를 못 연다. ffmpeg 경유로 값을 그대로 읽고 쓰는지."""

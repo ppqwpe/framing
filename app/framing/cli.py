@@ -164,6 +164,10 @@ class CommandLine:
                         default=None, help="어디로 보낼지")
         cv.add_argument("--image-format", choices=("png", "jpg", "webp", "exr", "dpx"), default=None,
                         help="이미지를 어떤 형식으로")
+        cv.add_argument("--target-fps", type=float, default=24,
+                        help="fps: 목표 프레임레이트 (24 · 23.976 · 25 · 29.97 …)")
+        cv.add_argument("--fps-mode", choices=("conform", "dup", "blend", "motion"), default="conform",
+                        help="fps: conform=프레임 1:1(길이 바뀜) · dup/blend/motion=길이 유지")
         cv.add_argument("--prores-movie", action="store_true",
                         help="시퀀스를 누크용 ProRes 로 묶음")
         cv.add_argument("--level", choices=tuple(QUALITY_PRESETS), default=None,
@@ -255,6 +259,7 @@ class CommandLine:
             h265=args.h265,
             convert_to=args.convert_to or "mp4",
             image_format=args.image_format or "png",
+            target_fps=args.target_fps, fps_mode=args.fps_mode,
             prores_movie=args.prores_movie,
             gif_fps=args.gif_fps, gif_width=args.gif_width, gif_loop=not args.gif_once,
             cut_mode=args.cut_mode, cut_threshold=args.cut_threshold,

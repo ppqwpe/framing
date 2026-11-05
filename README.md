@@ -37,6 +37,7 @@ What it does:
 | Revert | Bring a retimed clip back to its source length from the note (sidecar text or embedded tag) |
 | Reverse | Play a clip or an image sequence backwards |
 | Convert | MP4, Nuke-ready MOV, delivery naming, smaller files, GIF, image sequences and back |
+| Frame rate | Conform (every frame kept, speed changes, audio matched) or keep the length with duplicate, blend or motion interpolation; 23.976/29.97/59.94 as exact 1000/1001 rates |
 | Compare | Two clips or images side by side, wipe, overlay or flicker, with sound; save as a movie or PNG |
 | Split cuts | By detected scene changes, a fixed interval, or times you type |
 | Shot check · contact sheet | Frozen frames and other candidates to review, and a one-page overview of a shot |

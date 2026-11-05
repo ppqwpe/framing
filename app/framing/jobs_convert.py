@@ -10,7 +10,7 @@ from .errors import FramingError
 from .naming import DeliverySlate
 from .options import JobResult
 from .env import IMAGE_EXTENSIONS
-from .util import Console, hms, human
+from .util import Console, FrameRate, hms, human
 from .media import ProbeInfo
 from .frames import ColorProfile, PixelPlan, TransferCurve
 from .job import Job
@@ -94,7 +94,7 @@ class TranscodeJob(Job):
 
     def _drops_alpha(self) -> bool:
         """이 목적지가 투명도를 버리는가. 버릴 거면 미리 말해야 한다."""
-        return (self._opt.convert_to or "mp4") != "nuke"
+        return (self._opt.convert_to or "mp4") not in ("nuke", "fps")     # fps 는 알파 소스를 4444 로 담는다
 
     @staticmethod
     def _stamp(args: list[str], profile: ColorProfile) -> list[str]:
@@ -384,6 +384,120 @@ class ImageTarget(ConvertTarget):
         return "", ""
 
 
+class FpsTarget(ConvertTarget):
+    """
+    프레임레이트 바꾸기. 방법이 넷이고, 무엇을 지키느냐가 다르다.
+
+      conform  프레임 1:1. 장 수 그대로, 재생 속도만 바뀐다 (25 → 24 면 4% 느려짐).
+               소리는 같은 비율로 늘리고 줄인다 (음높이 유지). VFX 플레이트의 기본.
+      dup      길이 그대로. 모자라면 앞 프레임을 한 번 더, 남으면 버린다. 픽셀은 안 섞인다.
+      blend    길이 그대로. 이웃 프레임을 비율대로 섞는다 (잔상).
+      motion   길이 그대로. 움직임을 추정해 새 프레임을 그린다. 찢어질 수 있다.
+
+    23.976 · 29.97 · 59.94 는 1000/1001 분수로 정확히 맞춘다 (2997/125 같은 근사가 아니라).
+    코덱 · 계조 · 알파 · 색 표기 · 시작 타임코드는 원본을 따른다.
+    """
+
+    KEY = "fps"
+    TITLE = "프레임레이트 바꾸기"
+    HINT = "컨폼(프레임 1:1) · 복제 · 겹치기 · 모션 보간"
+    EXT = ".mov"
+    SUFFIX = "_fps"
+    MODES = ("conform", "dup", "blend", "motion")
+    NTSC = {23.976: "24000/1001", 29.97: "30000/1001", 47.952: "48000/1001",
+            59.94: "60000/1001", 119.88: "120000/1001"}
+
+    @classmethod
+    def rate(cls, value) -> tuple[str, float]:
+        """('24000/1001', 23.976…) — 영상에 적을 분수와 계산용 소수."""
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise FramingError("목표 FPS 를 숫자로 입력하세요 (예: 24 · 23.976 · 25).")
+        if not 1 <= number <= 240:
+            raise FramingError("목표 FPS 는 1~240 사이로 입력하세요.")
+        for near, text in cls.NTSC.items():
+            if abs(number - near) < 0.006:
+                top, bottom = text.split("/")
+                return text, int(top) / int(bottom)
+        exact = FrameRate.from_value(number)
+        return exact.text, exact.numerator / exact.denominator
+
+    @staticmethod
+    def tempo(ratio: float) -> str:
+        """atempo 는 한 번에 0.5~2 배만 받는다. 넘으면 나눠서 건다."""
+        steps = []
+        while ratio > 2.0:
+            steps.append("atempo=2.0"); ratio /= 2.0
+        while ratio < 0.5:
+            steps.append("atempo=0.5"); ratio /= 0.5
+        steps.append(f"atempo={ratio:.6f}")
+        return ",".join(steps)
+
+    def plan(self, job, target, info, profile):
+        mode = (job._opt.fps_mode or "conform").lower()
+        if mode not in self.MODES:
+            raise FramingError(f"알 수 없는 FPS 변환 방법입니다: {mode} ({' · '.join(self.MODES)})")
+        text, value = self.rate(job._opt.target_fps)
+        source = info.fps if info and info.fps else 0.0
+        if not source:
+            raise FramingError("원본 FPS 를 읽지 못했습니다.")
+        if abs(source - value) < 1e-3:
+            Console.info(f"원본이 이미 {value:.3f}fps 입니다 — 코덱만 원본 규격으로 다시 담습니다")
+
+        video_filter, tempo, said = self._motion(mode, text, value, source, info)
+        video, ext, coded = self._codec(target, profile)
+        sound = self._sound(info, ext, tempo)
+        # 장 수를 못박는다. 컨폼은 원본과 같게, 길이 유지는 원본 길이 × 목표 FPS 로.
+        # (minterpolate 는 꼬리 몇 장을 못 그리고 끝난다 — 재 보니 94장이어야 할 것이 91장)
+        frames = info.frames if info else 0
+        expected = frames if mode == "conform" else round(frames * value / source)
+        # 못박기는 모션 보간에만 — 나머지는 이미 정확하고, 못박으면 소리 꼬리가 몇 ms 잘린다
+        count = ["-frames:v", str(expected)] if expected > 0 and mode == "motion" else []
+        args = [*(["-vf", video_filter] if video_filter else []), "-r", text, *count,
+                *video, *sound, *(info.timecode_args() if info else [])]
+        if ext == ".mp4":
+            args += ["-movflags", "+faststart"]
+        return args, ext, f"_{self._label(value)}fps", f"{source:.3f} → {value:.3f}fps · {said} · {coded}"
+
+    @staticmethod
+    def _label(value: float) -> str:
+        return f"{value:.3f}".rstrip("0").rstrip(".").replace(".", "p")
+
+    def _motion(self, mode, text, value, source, info):
+        frames = info.frames if info else 0
+        if mode == "conform":
+            seconds = frames / value if frames else 0
+            Console.info(f"컨폼  프레임 {frames}장 그대로 · 길이 {info.duration:.3f}초 → {seconds:.3f}초"
+                         if frames else "컨폼  프레임 그대로, 재생 속도만 바뀝니다")
+            return f"setpts=N/({text}*TB)", self.tempo(value / source), "컨폼 (프레임 1:1)"
+        Console.info(f"길이 유지  약 {frames}장 → 약 {round(frames * value / source)}장")
+        if mode == "dup":
+            return f"fps={text}", "", "복제 (길이 유지)"
+        if mode == "blend":
+            return f"framerate=fps={text}", "", "겹치기 (길이 유지)"
+        Console.warn("모션 보간은 빠른 움직임 · 가림에서 찢어질 수 있습니다 — 결과를 꼭 보세요")
+        # 끝 프레임을 몇 장 복제해 두어야 마지막 구간까지 그린다 (넘친 몫은 -frames:v 가 자른다)
+        return (f"tpad=stop_mode=clone:stop=4,minterpolate=fps={text}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+                "", "모션 보간 (길이 유지)")
+
+    @staticmethod
+    def _codec(target, profile):
+        """편집용 소스(ProRes · 10bit · 알파)는 ProRes 로, 8bit 배포용은 같은 상자의 h264 로."""
+        if profile.deep:
+            args, why = PixelPlan.for_prores(profile)
+            return args, ".mov", why
+        pix, _note = PixelPlan.for_x26x(profile, keep_depth=True)
+        ext = ".mov" if target.suffix.lower() == ".mov" else ".mp4"
+        return ["-c:v", "libx264", "-crf", "12", "-preset", "slow", *pix], ext, "h264 (crf 12)"
+
+    def _sound(self, info, ext, tempo):
+        if not (info and info.acodec):
+            return ["-an"]
+        coded = self.pcm(info) if ext == ".mov" else ["-c:a", "aac", "-b:a", "256k"]
+        return coded + (["-af", tempo] if tempo else [])
+
+
 class GifTarget(ConvertTarget):
     KEY = 'gif'
     TITLE = 'GIF 애니메이션'
@@ -416,7 +530,7 @@ class SequenceTarget(ConvertTarget):
 
 
 CONVERT_TARGETS: tuple[ConvertTarget, ...] = (
-    Mp4Target(), MovTarget(), NukeTarget(), DeliveryTarget(), SmallTarget(),
+    Mp4Target(), MovTarget(), NukeTarget(), DeliveryTarget(), SmallTarget(), FpsTarget(),
     ImageTarget(), SequenceTarget(), GifTarget(), FramesTarget())
 CONVERT_BY_KEY = {t.KEY: t for t in CONVERT_TARGETS}
 

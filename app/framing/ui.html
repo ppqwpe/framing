@@ -1793,6 +1793,7 @@ Object.assign(EN,{"길이 · 배속 · RIFE / FFmpeg 보간": "Length · speed �
 Object.assign(EN,{"알아서: 늘릴 때는 FFmpeg 모션 보간, 줄일 때는 원본 프레임 선택을 사용합니다. 원본 색을 유지합니다.": "Auto uses FFmpeg to extend clips and selects source frames to shorten them. Source colors are kept."});
 
 Object.assign(EN,{"늘릴 때는 원본 프레임을 모두 남깁니다. 메모에는 추가한 프레임 번호만 적습니다. 되돌리기는 길이와 순서를 복원하며 소리와 압축 전 화질은 복원하지 않습니다.": "When extending, all source frames are kept and the note lists only added frames. Undo restores duration and order, not audio or pre-compression quality.", "RIFE 결과: 무음 MOV와 PNG를 저장합니다. 늘릴 때는 원본 프레임을 모두 남기고, 추가한 프레임만 메모에 적어 되돌릴 수 있습니다.": "RIFE saves a silent MOV and PNGs. Extending keeps all source frames; the note lists only added frames for undo.", "새 버전에서 늘린 영상은 추가 프레임만 빼서 원본 길이로 되돌립니다. 이전 버전의 복원 불가 메모나 줄인 영상은 원본으로 다시 작업하세요.": "Clips extended with this version can restore source duration by removing added frames. Older non-restorable notes and shortened clips require the original source."});
+Object.assign(EN,{"프레임레이트 바꾸기": "Change frame rate", "컨폼(프레임 1:1) · 복제 · 겹치기 · 모션 보간": "Conform (1:1 frames) · duplicate · blend · motion interpolation", "목표 FPS": "Target FPS", "바꾸는 방법": "Method", "컨폼 (프레임 1:1)": "Conform (1:1 frames)", "복제 (길이 유지)": "Duplicate (keep length)", "겹치기 (길이 유지)": "Blend (keep length)", "모션 보간 (길이 유지)": "Motion interpolation (keep length)", "프레임 장 수는 그대로 두고 재생 속도만 바꿉니다. 25 → 24 면 4% 느려지고 소리도 같이 맞춥니다. VFX 플레이트는 보통 이 방법입니다.": "Keeps every frame and changes only the playback speed. 25 → 24 plays 4% slower, and the audio is matched. This is the usual choice for VFX plates.", "길이를 유지합니다. 모자라는 자리는 앞 프레임을 한 번 더 쓰고, 남는 프레임은 버립니다. 픽셀은 섞이지 않습니다.": "Keeps the length. Missing slots reuse the previous frame and extra frames are dropped. Pixels are never mixed.", "길이를 유지합니다. 이웃 프레임을 비율대로 섞어 채웁니다. 잔상이 남습니다.": "Keeps the length. Neighbouring frames are mixed by weight, which leaves ghosting.", "길이를 유지합니다. 움직임을 추정해 새 프레임을 그립니다. 빠른 움직임에서 찢어질 수 있으니 결과를 꼭 확인하세요.": "Keeps the length. New frames are drawn from estimated motion. Fast motion can tear, so check the result.", "목표 FPS 를 숫자로 입력하세요 (예: 24 · 23.976 · 25).": "Enter the target FPS as a number (for example 24, 23.976 or 25).", "목표 FPS 는 1~240 사이로 입력하세요.": "Enter a target FPS from 1 to 240.", "원본 FPS 를 읽지 못했습니다.": "Could not read the source FPS.", "컨폼  프레임 {0}장 그대로 · 길이 {1}초 → {2}초": "Conform  all {0} frames kept · length {1}s → {2}s", "컨폼  프레임 그대로, 재생 속도만 바뀝니다": "Conform  every frame kept, only the playback speed changes", "길이 유지  약 {0}장 → 약 {1}장": "Keep length  about {0} frames → about {1}", "원본이 이미 {0}fps 입니다 — 코덱만 원본 규격으로 다시 담습니다": "The source is already {0}fps — re-encoding to the source spec only", "모션 보간은 빠른 움직임 · 가림에서 찢어질 수 있습니다 — 결과를 꼭 보세요": "Motion interpolation can tear on fast motion or occlusion — check the result", "알 수 없는 FPS 변환 방법입니다: {0}": "Unknown frame-rate method: {0}"});
 
 class RetimeWorkflow {
   static isRife(options) { return options.retimeWay !== 'undo' && options.retimeMode === 'rife'; }
@@ -1835,7 +1836,7 @@ class OptionInput {
     targetFrames:['프레임',1,6000,1], targetSeconds:['초',0.000001,1000000,'any'],
     speed:['배속',0.000001,1000000,'any'], fps:['시퀀스 FPS',1,240,'any'],
     auditFreezeSeconds:['홀드 최소 길이(초)',0.1,10,'any'],
-    gifFps:['GIF FPS',1,50,'any'], maxHeight:['세로 상한(px)',0,1000000,1],
+    gifFps:['GIF FPS',1,50,'any'], targetFps:['목표 FPS',1,240,'any'], maxHeight:['세로 상한(px)',0,1000000,1],
     cutMinSeconds:['최소 컷 길이(초)',0.1,600,'any'],
     cutInterval:['분할 간격(초)',0.1,86400,'any']
   };
@@ -1854,6 +1855,7 @@ class OptionInput {
     if(key==='retime' && o.retimeWay!=='undo')keys.push({frames:'targetFrames',seconds:'targetSeconds',speed:'speed'}[o.lengthMode]||'targetSeconds');
     if(key==='extract' && ['count','every'].includes(o.pickMode))keys.push(o.pickMode);
     if(key==='convert' && o.convertTo==='gif')keys.push('gifFps');
+    if(key==='convert' && o.convertTo==='fps')keys.push('targetFps');
     if(key==='convert' && o.convertTo==='image')keys.push('maxHeight');
     if(key==='audit' || (key==='contact' && o.contactAudit))keys.push('auditFreezeSeconds');
     if(key==='cuts' && o.cutMode!=='manual')keys.push(o.cutMode==='interval'?'cutInterval':'cutMinSeconds');
@@ -2813,7 +2815,7 @@ class Framing {
       // reverse · 묶기 공용
       fps: 24, makeMp4: true,
       // convert
-      convertTo: 'mp4', imageFormat: 'png', proresMovie: false,
+      convertTo: 'mp4', imageFormat: 'png', proresMovie: false, targetFps: 24, fpsMode: 'conform',
       gifFps: 12, gifWidth: 640, gifLoop: true,
       cutMode: 'auto', cutThreshold: 10, cutMinSeconds: 0.5, cutInterval: 5, cutTimes: '', 
       // 납품 이름 — 비우면 원본 이름과 빈 버전에서 알아서 짓는다
@@ -4112,7 +4114,7 @@ class Framing {
     if(kinds.sequence)choices.push(['movie','시퀀스 → 영상']);
     if(kinds.video || kinds.sequence)choices.push(['gif','GIF 애니메이션']);
     if(kinds.image)choices.push(['image','이미지 형식 바꾸기']);
-    if(kinds.video)choices.push(['nuke','누크용 마스터'],['delivery','납품 (4444 XQ)'],['small','용량 줄이기'],['mov','MOV (상자만)']);
+    if(kinds.video)choices.push(['nuke','누크용 마스터'],['fps','프레임레이트 바꾸기'],['delivery','납품 (4444 XQ)'],['small','용량 줄이기'],['mov','MOV (상자만)']);
     if(!choices.some(([key])=>key===this.options.convertTo))this.options.convertTo=choices[0]?.[0]||'mp4';
     chips('변환할 형식', 'convertTo', choices);
     const to=this.options.convertTo;
@@ -4121,6 +4123,15 @@ class Framing {
       chips('GIF 가로 크기','gifWidth',[[480,'480px'],[640,'640px'],[960,'960px']]);
       flag('반복 재생','gifLoop');
       box.append(el('p',{class:'help',text:t('전체 길이를 GIF로 저장합니다. GIF에는 소리가 없고 색상 수가 제한됩니다.')}));
+    }
+    if(to==='fps'){
+      number('목표 FPS','targetFps','24 · 23.976 · 25 · 29.97 · 30 · 48 · 50 · 59.94 · 60');
+      chips('바꾸는 방법','fpsMode',[['conform','컨폼 (프레임 1:1)'],['dup','복제 (길이 유지)'],['blend','겹치기 (길이 유지)'],['motion','모션 보간 (길이 유지)']]);
+      const fpsHelp={conform:'프레임 장 수는 그대로 두고 재생 속도만 바꿉니다. 25 → 24 면 4% 느려지고 소리도 같이 맞춥니다. VFX 플레이트는 보통 이 방법입니다.',
+        dup:'길이를 유지합니다. 모자라는 자리는 앞 프레임을 한 번 더 쓰고, 남는 프레임은 버립니다. 픽셀은 섞이지 않습니다.',
+        blend:'길이를 유지합니다. 이웃 프레임을 비율대로 섞어 채웁니다. 잔상이 남습니다.',
+        motion:'길이를 유지합니다. 움직임을 추정해 새 프레임을 그립니다. 빠른 움직임에서 찢어질 수 있으니 결과를 꼭 확인하세요.'};
+      box.append(el('p',{class:'help',text:t(fpsHelp[this.options.fpsMode]||fpsHelp.conform)}));
     }
     if(to==='frames'){
       chips('시퀀스 형식','imageFormat',[['png','PNG'],['jpg','JPG'],['exr','EXR'],['dpx','DPX']]);
