@@ -8,7 +8,10 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const APP = path.resolve(__dirname, '..');            // Framing/app
+// Framing/app. 구운 판(app/window/Framing.exe · Framing.app)은 실행 파일 폴더의 한 칸 위.
+const APP = !app.isPackaged ? path.resolve(__dirname, '..')
+  : process.platform === 'darwin' ? path.resolve(process.execPath, '..', '..', '..', '..', '..')
+  : path.resolve(path.dirname(process.execPath), '..');
 const ICON = path.join(APP, 'icon', process.platform === 'win32' ? 'framing.ico' : 'framing.png');
 const BACKGROUND = '#0b0d0f';                          // ui.html 의 --bg
 

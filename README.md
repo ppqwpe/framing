@@ -10,7 +10,7 @@ Everything is processed on your own machine (or your own server for the web vers
 
 **Windows.** Download the zip from [Releases](../../releases), extract it, and double-click `Framing.bat`. It opens in your browser.
 On first launch it puts a Framing shortcut with the app icon on your desktop.
-`Framing_App.bat` opens the same tool in its own window (Electron) instead of the browser, with the system file dialogs and drag and drop from Explorer.
+`Framing_App.bat` (or `app\window\Framing.exe`) opens the same tool in its own window instead of the browser, with the system file dialogs and drag and drop from Explorer.
 
 **Mac.** Double-click `Framing.command`. The first run sets up Python packages in `app/.venv-mac` (about a minute) and needs FFmpeg from Homebrew (`brew install ffmpeg`).
 To build a real `Framing.app`, run `app/mac/Mac에서_빌드.command` on a Mac; see [app/mac/README.md](app/mac/README.md).
@@ -58,11 +58,11 @@ Run the tests after any change. All of them should pass.
 app\python\python.exe app\tests\run_tests.py
 ```
 
-The Electron window needs `pnpm install` once in `app/electron` (its `node_modules` is not in Git, about 330 MB).
+The window version is Electron. Its `node_modules` and the built `app/window` are not in Git (about 300 MB each). In `app/electron`, `pnpm install` once lets `Framing_App.bat` run it from source, and `pnpm run build` makes `app/window/Framing.exe` for the release zip.
 
 A few UI checks need Node.js on `PATH`; without it they are skipped and reported. The web service has its own tests in `app/web/tests`.
 
-Build a new Windows release zip like this. It lands next to the repo folder as `Framing_1.0_windows.zip`.
+Build a new Windows release zip like this (run `pnpm run build` in `app/electron` first so the window is included). It lands next to the repo folder as `Framing_1.0_windows.zip`.
 
 ```
 app\python\python.exe app\tools\build_zip.py
@@ -79,7 +79,7 @@ One engine, three ways to run it.
 | `Framing.command` | Mac launcher from source: venv + Homebrew FFmpeg, same UI in the browser |
 | `app/main.py` | Entry point both launchers run; with arguments it is the command-line tool |
 | `app/framing/` | The engine, split by job (see below), and the whole desktop UI in one file (`ui.html`) |
-| `app/electron/` | Electron window: starts the engine with `FRAMING_MODE=electron`, opens its address, stops it on close |
+| `app/electron/` | Electron window: starts the engine with `FRAMING_MODE=electron`, opens its address, stops it on close; `build.js` makes `app/window/Framing.exe` |
 | `app/mac/` | Native Mac app: pywebview window, PyInstaller spec and build script for `Framing.app` |
 | `app/web/` | Web service: FastAPI server, job worker, browser UI, Dockerfile, Compose and Caddy config |
 | `app/tests/` | Automated tests, including SHOTKIT-era file compatibility |

@@ -6,9 +6,11 @@
   "description": "Framing in its own window",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "node build.js"
   },
   "devDependencies": {
+    "@electron/packager": "^18.4.4",
     "electron": "38.8.6"
   }
 }

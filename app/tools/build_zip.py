@@ -6,7 +6,8 @@
 zip 안의 맨 위 폴더 이름은 Framing. 쓰다가 생긴 것(app/work, 결과, __pycache__)과 깃 폴더,
 Mac 소스 실행용 가상환경은 넣지 않는다.
 파이썬 · 라이브러리 · ffmpeg · RIFE(app/python, app/lib, app/ffmpeg, app/rife)는 깃에는 없지만 zip 에는 꼭 들어가야
-하므로, 이 폴더에 있어야 만든다.
+하므로, 이 폴더에 있어야 만든다. Electron 창(app/window, app/electron 에서 pnpm run build)이 있으면 같이 넣고,
+app/electron/node_modules(개발용 Electron)는 넣지 않는다.
 """
 from __future__ import annotations
 
@@ -16,7 +17,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SKIP = {ROOT / "results", ROOT / "app" / "work", ROOT / ".git", ROOT / "app" / ".venv-mac",
-        ROOT / "app" / "web" / "data", ROOT / "app" / "mac" / "build", ROOT / "app" / "mac" / "dist"}
+        ROOT / "app" / "web" / "data", ROOT / "app" / "mac" / "build", ROOT / "app" / "mac" / "dist",
+        ROOT / "app" / "electron" / "node_modules"}
 SKIP_NAMES = {"__pycache__", ".gitignore", ".gitattributes", ".env"}
 NEEDED = (ROOT / "app" / "python" / "python.exe", ROOT / "app" / "lib",
           ROOT / "app" / "ffmpeg" / "ffmpeg.exe", ROOT / "app" / "ffmpeg" / "ffprobe.exe",
@@ -38,6 +40,8 @@ def build(dest: Path) -> tuple[int, float]:
     if missing:
         raise SystemExit("런타임이 없어 zip 을 만들 수 없습니다 (배포 zip 에서 app\\python, app\\lib, app\\ffmpeg, app\\rife 를 복사해 오세요): "
                          + ", ".join(missing))
+    if not (ROOT / "app" / "window" / "Framing.exe").exists():
+        print("[알림] app/window/Framing.exe 가 없어 창 버전은 빠집니다 (app/electron 에서 pnpm run build)")
     tmp = dest.with_suffix(".tmp")
     items = files()
     with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:

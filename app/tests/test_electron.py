@@ -5,6 +5,7 @@ import json, os, subprocess, sys, tempfile, unittest
 APP = Path(__file__).resolve().parents[1]
 ELECTRON = APP / 'electron' / 'node_modules' / 'electron' / 'dist' / ('electron.exe' if os.name == 'nt' else 'electron')
 PYTHON = APP / 'python' / 'python.exe'
+PACKAGED = APP / 'window' / 'Framing.exe'
 
 
 class ElectronEngineTests(unittest.TestCase):
@@ -21,18 +22,25 @@ class ElectronEngineTests(unittest.TestCase):
             if child.poll() is None:
                 child.kill()
 
-    @unittest.skipUnless(ELECTRON.exists() and PYTHON.exists(), 'Electron or the Windows runtime is not installed')
-    def test_window_opens_with_native_bridge(self):
+    def _smoke(self, command):
         with tempfile.TemporaryDirectory() as name:
             shot = Path(name) / 'window.png'
             env = dict(os.environ, FRAMING_SMOKE=str(shot))
-            done = subprocess.run([str(ELECTRON), str(APP / 'electron')], env=env, capture_output=True, timeout=90)
+            done = subprocess.run(command, env=env, capture_output=True, timeout=90)
             lines = [l for l in done.stdout.decode('utf-8', 'replace').splitlines() if l.startswith('FRAMING_SMOKE=')]
             self.assertTrue(lines, done.stdout.decode('utf-8', 'replace') + done.stderr.decode('utf-8', 'replace'))
             state = json.loads(lines[0].split('=', 1)[1])
             self.assertEqual(state['title'], 'Framing')
             self.assertTrue(state['native'] and state['api'])
             self.assertGreater(shot.stat().st_size, 10000)
+
+    @unittest.skipUnless(ELECTRON.exists() and PYTHON.exists(), 'Electron or the Windows runtime is not installed')
+    def test_window_opens_with_native_bridge(self):
+        self._smoke([str(ELECTRON), str(APP / 'electron')])
+
+    @unittest.skipUnless(PACKAGED.exists() and PYTHON.exists(), 'app/window is not built')
+    def test_packaged_window_finds_the_engine(self):
+        self._smoke([str(PACKAGED)])
 
 
 if __name__ == '__main__':
