@@ -1008,12 +1008,11 @@ class LogVoice {
 }
 
 /**
- * 파이썬으로 가는 길은 세 가지다.
- *   창 모드      window.pywebview.api 를 그대로
- *   브라우저 모드 로컬 서버에 fetch
- *   테스트       끼워 넣은 가짜
+ * 파이썬으로 가는 길은 두 가지다.
+ *   보통       로컬 서버에 fetch (브라우저 · Electron 창 모두. Electron 이면 파일 고르기만 OS 대화상자로)
+ *   테스트     끼워 넣은 가짜 (window.__stubApi)
  *
- * 반대 방향(파이썬 → 화면)은 어느 모드든 하나다 — 화면이 /events 를 가져온다.
+ * 반대 방향(파이썬 → 화면)은 하나다 — 화면이 /events 를 가져온다.
  */
 const API_METHODS = ['describe', 'inspect', 'pick_files', 'pick_folder',
                      'resolve_picks', 'delivery_name', 'run', 'cancel', 'reveal', 'add_paths',
@@ -1138,8 +1137,7 @@ class ErrorReporter {
  *
  * 감싸는 이유는 하나다 — 실패했을 때 "무엇이" 실패했는지 이름이 남게 하려고.
  * 예전에는 inspect() 가 실패하면 그저 아무 일도 일어나지 않았다.
- * 없는 함수를 부르는 경우(옛 pywebview 는 인자 여러 개를 못 넘긴다)도
- * 여기서 걸린다.
+ * 엔진이 내주지 않는 함수를 부르는 경우도 여기서 걸린다.
  */
 class ApiGuard {
   constructor(raw, report) { this._raw = raw; this._report = report; }
@@ -1153,7 +1151,7 @@ class ApiGuard {
   async _call(name, args) {
     const fn = this._raw[name];
     if (typeof fn !== 'function') {
-      const oops = new Error(`${name}() 을 창이 내주지 않습니다 (pywebview 판이 낮을 수 있습니다)`);
+      const oops = new Error(`${name}() 을 엔진이 내주지 않습니다`);
       this._tell(name, oops);
       throw oops;
     }
@@ -1236,17 +1234,16 @@ const useReporter = (r) => { _report = r; };
 const api = () => {
   if (_api) return _api;
   let raw = null;
-  if (window.pywebview && window.pywebview.api) raw = window.pywebview.api;
-  else if (window.__stubApi) raw = window.__stubApi;
+  if (window.__stubApi) raw = window.__stubApi;
   else if (location.protocol.startsWith('http')) raw = withNativePickers(makeHttpApi());
   if (raw) _api = new ApiGuard(raw, _report).wrap();
   return _api;
 };
 
-/** 끌어다 놓은 파일의 실제 경로. pywebview · Electron(app/electron/preload.js) 이 알려 준다. */
+/** 끌어다 놓은 파일의 실제 경로. Electron 창(app/electron/preload.js)만 알려 준다 — 브라우저는 숨긴다. */
 function filePath(file) {
   if (window.framingNative) return window.framingNative.pathFor(file) || '';
-  return file.pywebviewFullPath || file.path || '';
+  return file.path || '';
 }
 
 /** Electron 창이면 파일 · 폴더 고르기를 OS 대화상자로 한다 (내장 파이썬에는 tkinter 가 없다). */
@@ -1337,14 +1334,13 @@ class Focus {
  * 여기서는 화면 반응과, 경로를 못 얻었을 때의 안내만 맡는다.
  */
 class DropZone {
-  constructor(onPaths, onPathsUnavailable, onWaiting) {
+  constructor(onPaths, onPathsUnavailable) {
     this._onPaths = onPaths;
     this._onUnavailable = onPathsUnavailable;
-    this._onWaiting = onWaiting || (() => {});
     this._depth = 0;
   }
 
-  /** pywebview 가 File 에 경로를 얹어 주는 판도 있다. 있으면 바로 쓴다. */
+  /** 경로를 알 수 있는 파일만 (Electron 창). 브라우저에서는 빈 목록이다. */
   static pathsIn(event) {
     const files = (event.dataTransfer && event.dataTransfer.files) || [];
     const found = [];
@@ -1363,10 +1359,7 @@ class DropZone {
       e.preventDefault();
       this._reset();
       const paths = DropZone.pathsIn(e);
-      if (paths.length) { this._onPaths(paths); return; }   // 여기서 보이면 바로 쓴다
-      // 창 모드면 파이썬이 'dropped' 이벤트로 진짜 경로를 보내준다.
-      // 그 사이가 비어 보이지 않게 기다린다고 알려 준다.
-      if (window.pywebview) { this._onWaiting(); return; }
+      if (paths.length) { this._onPaths(paths); return; }
       this._onUnavailable(e);
     });
     window.addEventListener('blur', () => this._reset());
@@ -2918,8 +2911,7 @@ class Framing {
         this._toast(t('브라우저 모드에서는 끌어다 놓은 파일의 경로를 알 수 없습니다. ')
                     + t('"경로 직접 붙여넣기" 를 쓰세요.'));
         $('#manual').open = true;
-      },
-      () => this._awaitDrop()).attach(document.body);
+      }).attach(document.body);
 
     let info = {};
     try { info = await api().describe(); } catch (_) {
@@ -2932,20 +2924,9 @@ class Framing {
     Lang.adopt(info.lang);           // 지난번에 고른 언어로 열린다
     this._paintChrome();
     this._paintHome();
-    $('#env').textContent =
-      `${info.build || ''} · python ${info.python} · ffmpeg ${t(info.ffmpeg ? '있음' : '없음')}` +
-      (info.canDrop ? t(' · 창에 끌어다 놓기 됨') : '');
-    // http 로 받은 화면이면 창이든 브라우저든 소식을 가져온다.
-    // 예전에는 창 모드일 때 파이썬이 밀어넣어 주기를 기다렸는데, 그 호출은
-    // 메인 스레드에서만 할 수 있어서 맥에서는 앱이 죽었다. 가져오는 쪽이 안전하다.
+    $('#env').textContent = this._envLine(info);
+    // 엔진 소식은 화면이 /events 에서 가져간다 (파이썬이 화면에 밀어넣지 않는다)
     if (!window.__stubApi && location.protocol.startsWith('http')) pumpEvents();
-    setTimeout(async () => {              // 끌어다 놓기는 창이 뜬 뒤에야 정해진다
-      try {
-        const again = await api().describe();
-        if (again.canDrop) $('#env').textContent = $('#env').textContent
-          .replace(/( · .*)?$/, t(' · 창에 끌어다 놓기 됨'));
-      } catch (_) {}
-    }, 2000);
     if (info.startupPaths && info.startupPaths.length) await this._use(info.startupPaths);
   }
 
@@ -2965,6 +2946,12 @@ class Framing {
     try { await api().prefs_save({ lang: Lang.now }); } catch (_) {}
   }
 
+  /** 머리띠 오른쪽의 한 줄. 끌어다 놓기는 Electron 창에서만 경로가 보인다. */
+  _envLine(info) {
+    return `${info.build || ''} · python ${info.python} · ffmpeg ${t(info.ffmpeg ? '있음' : '없음')}` +
+      (window.framingNative ? t(' · 창에 끌어다 놓기 됨') : '');
+  }
+
   /** 머리띠와 서랍처럼 늘 떠 있는 글자. */
   _paintChrome() {
     $('#homeBtn').textContent = t('처음 화면');
@@ -2975,9 +2962,7 @@ class Framing {
     $('#lang').textContent = Lang.label;
     $('#lang').title = Lang.now === 'en' ? 'Switch to Korean' : '영어로 전환';
     if (this.environment) {
-      const info = this.environment;
-      $('#env').textContent = `${info.build || ''} · python ${info.python} · ffmpeg ${t(info.ffmpeg ? '있음' : '없음')}` +
-        (info.canDrop ? t(' · 창에 끌어다 놓기 됨') : '');
+      $('#env').textContent = this._envLine(this.environment);
     }
     $('#drawerHead').textContent = t('도구');
     $('#drawerClose').textContent = t('닫기');
@@ -2996,24 +2981,6 @@ class Framing {
     $('#viewerHint').textContent = t('내보내면 대조 화면만 나옵니다 — 원본은 그대로입니다');
     $('#viewerWide').title = t('파일 목록을 잠시 접고 크게 봅니다');
     $('#viewerWide').textContent = t('크게');
-  }
-
-  /**
-   * 창 위에 놓았을 때. 경로는 파이썬이 알아내서 'dropped' 로 보내 주는데,
-   * 그 사이 몇 초가 아무 일도 없는 것처럼 보였다. 그 자리를 띠로 메운다.
-   * 소식이 끝내 안 오면 스스로 걷는다 — 영영 도는 띠가 제일 나쁘다.
-   */
-  _awaitDrop() {
-    if (this._dropWait) return;
-    this.waiting.start();
-    this._dropWait = setTimeout(() => this._dropArrived(), 8000);
-  }
-
-  _dropArrived() {
-    if (!this._dropWait) return;
-    clearTimeout(this._dropWait);
-    this._dropWait = null;
-    this.waiting.stop();
   }
 
   /* ---------- 파일 넣기 ---------- */
@@ -4450,9 +4417,7 @@ class Framing {
 
   _event(kind, data) {
     if (kind === 'compare-export-progress') { this.compareExport?.progress(data); return; }
-    if (kind === 'dropped') { this._dropArrived(); this._use(data.paths); return; }
     if (kind === 'viewer') { this._openViewer(data); return; }
-    if (kind === 'capability') { return; }
     if (kind === 'log') { this._line(data.kind, data.text); return; }
     if (kind === 'start') {
       const unit = data.unit === '쌍' ? 'pairs' : 'files';
@@ -4927,7 +4892,7 @@ class Framing {
 }
 
 /**
- * 시작은 딱 한 번. 주소 방식으로 모드를 정한다 — file:// 이면 창, http 면 브라우저.
+ * 시작은 딱 한 번.
  */
 
 class Startup {
@@ -4937,10 +4902,7 @@ class Startup {
     // 오류받이부터 건다. 시작하다 넘어져도 그 사실이 보여야 한다.
     window.__errors = new ErrorReporter($('#alerts')).watch();
     useReporter(window.__errors);
-    if (location.protocol.startsWith('http') || window.__stubApi) return Startup._go();
-    const once = () => { if (!Startup._done) { Startup._done = true; Startup._go(); } };
-    window.addEventListener('pywebviewready', once, { once: true });
-    setTimeout(once, 4000);
+    Startup._go();
   }
   static _go() {
     window.__framing = new Framing();

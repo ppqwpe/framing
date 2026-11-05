@@ -1,11 +1,9 @@
 Bundled components and original sources
-SHOTKIT application source and reproducible build inputs are supplied in the companion source ZIP.
-Python: https://www.python.org/ (PSF license)
-PyInstaller: https://pyinstaller.org/ (GPL with bootloader exception)
-pywebview: https://pywebview.flowrl.com/guide/freezing.html (BSD)
-OpenCV / NumPy / Pillow / pythonnet / clr-loader / cffi: package licenses are in this folder.
-FFmpeg 9.0 full build: https://www.gyan.dev/ffmpeg/builds/ ; https://ffmpeg.org/releases/ffmpeg-9.0.tar.xz
+Framing source: https://github.com/ppqwpe/framing
+
+Python 3.12 (Windows embeddable): https://www.python.org/ (PSF License; Python-LICENSE.txt)
+NumPy, OpenCV (opencv-python-headless), Pillow: BSD-3-Clause, Apache-2.0, MIT-CMU. Their license files are in app/lib/*.dist-info.
+FFmpeg 9.0 full build by gyan.dev: https://www.gyan.dev/ffmpeg/builds/ ; source https://ffmpeg.org/releases/ffmpeg-9.0.tar.xz
 FFmpeg is a separate, unmodified command-line program; see FFmpeg-GPL.txt and FFmpeg-build.txt.
-RIFE ncnn Vulkan 20221029 and v4.6 model: https://github.com/nihui/rife-ncnn-vulkan/releases/tag/20221029
-RIFE source: https://github.com/nihui/rife-ncnn-vulkan (MIT); license included.
-Microsoft Edge WebView2 Runtime is supplied by Microsoft, not included in this package.
+RIFE ncnn Vulkan 20221029 and the v4.6 model: https://github.com/nihui/rife-ncnn-vulkan (MIT); see RIFE-LICENSE.txt.
+Electron 38.8.6 (the Framing window in app/window): https://www.electronjs.org/ (MIT; app/window/LICENSE and LICENSES.chromium.html).

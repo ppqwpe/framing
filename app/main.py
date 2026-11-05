@@ -17,7 +17,7 @@ for name, folder in (("FRAMING_FFMPEG_HOME", "ffmpeg"), ("FRAMING_RIFE_HOME", "r
         os.environ.setdefault(name, str(APP / folder))
 if (APP / "python").is_dir() and Path(sys.executable).parent == APP / "python":
     os.environ.setdefault("FRAMING_PORTABLE", "1")     # 내장 파이썬이면 pip 설치 단계를 건너뛴다
-os.environ.setdefault("FRAMING_MODE", "browser")       # 그리딩처럼 브라우저로 (창이 필요하면 FRAMING_MODE=window)
+os.environ.setdefault("FRAMING_MODE", "browser")       # 브라우저로 연다. Electron 창(app/electron)은 FRAMING_MODE=electron 으로 부른다
 os.environ.setdefault("FRAMING_DETACHED", "1")         # 콘솔을 떼지 않는다 — 서버 소식이 보이고 Ctrl+C 로 끝낼 수 있게
 
 from framing import core, env  # noqa: E402

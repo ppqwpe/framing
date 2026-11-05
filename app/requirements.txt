@@ -1,5 +1,5 @@
 # Framing 엔진이 쓰는 파이썬 패키지 (Windows 내장 런타임 app/lib 과 같은 판)
-# Mac 소스 실행(Framing.command)은 이 목록을 설치한다. 웹 서버는 app/web/requirements.txt, Mac 앱 빌드는 app/mac/requirements-mac.txt
+# Mac 의 Framing.command 가 처음 열릴 때 이 목록을 설치한다. 웹 서버는 app/web/requirements.txt
 numpy==2.5.4
 opencv-python-headless==5.0.0.93
 pillow==13.0.0

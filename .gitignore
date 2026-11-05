@@ -2,7 +2,6 @@
 app/python/
 app/lib/
 app/.venv-mac/
-app/mac/.venv-mac/
 
 # 쓰다가 생기는 것
 __pycache__/
@@ -11,8 +10,6 @@ app/work/
 results/
 app/web/data/
 app/web/.env
-app/mac/build/
-app/mac/dist/
 *.zip
 app/ffmpeg/
 app/rife/

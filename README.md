@@ -16,7 +16,6 @@ On first launch it puts a Framing shortcut with the app icon on your desktop.
 It needs Python 3.10+ and FFmpeg from Homebrew (`brew install python@3.12 ffmpeg`).
 The first run sets up Python packages in `app/.venv-mac` (about a minute), signs `app/window/Framing.app` for your Mac, and opens it. After that you can open `Framing.app` directly.
 Framing has no Apple developer signature, so macOS may block `Framing.command` the first time: open **System Settings → Privacy & Security** and click **Open Anyway**, or run `xattr -cr` on the Framing folder in Terminal.
-The older PyInstaller build (`app/mac/Mac에서_빌드.command`) still works; see [app/mac/README.md](app/mac/README.md).
 
 **Web.** `app/web` is a Docker Compose service with HTTPS through Caddy, for a small team behind one shared password. See [app/web/README.md](app/web/README.md).
 
@@ -74,7 +73,9 @@ app\python\python.exe app\tests\run_tests.py
 The window version is Electron (`app/electron`). Its `node_modules`, the built `app/window` and the Mac runtimes in `app/window-mac` are not in Git.
 In `app/electron`, `pnpm install` once lets `Framing_App.bat` run it from source, `pnpm run build` makes `app/window/Framing.exe` (or `Framing.app` on a Mac), and `pnpm run build:mac` downloads the two Mac Electron runtimes the Mac zips are built from.
 
-A few UI checks need Node.js on `PATH`; without it they are skipped and reported. The web service has its own tests in `app/web/tests`.
+A few UI checks need Node.js on `PATH`; without it they are skipped and reported. The web service has its own tests in `app/web/tests` (they need FastAPI: `pip install -r app/web/requirements.txt httpx`).
+
+The release zips carry only what a user runs: launchers, `app/framing`, `app/main.py`, the runtimes, `app/window`, icons and licenses. Tests, tools, the web service, the Electron source and `logo/` stay in Git only.
 
 Build the release zips like this (run `pnpm run build` and `pnpm run build:mac` in `app/electron` first). They land next to the repo folder: `Framing_1.0_windows.zip`, `Framing_1.0_mac_arm64.zip` and `Framing_1.0_mac_x64.zip`.
 No Mac is needed for the Mac zips: `Framing.app` is copied entry by entry out of Electron's own Mac zip (symlinks and permissions kept) and renamed.
@@ -95,7 +96,6 @@ One engine, three ways to run it.
 | `app/main.py` | Entry point both launchers run; with arguments it is the command-line tool |
 | `app/framing/` | The engine, split by job (see below), and the whole desktop UI in one file (`ui.html`) |
 | `app/electron/` | Electron window: starts the engine with `FRAMING_MODE=electron`, opens its address, stops it on close; `build.js` makes `app/window/Framing.exe` |
-| `app/mac/` | Native Mac app: pywebview window, PyInstaller spec and build script for `Framing.app` |
 | `app/web/` | Web service: FastAPI server, job worker, browser UI, Dockerfile, Compose and Caddy config |
 | `app/tests/` | Automated tests, including SHOTKIT-era file compatibility |
 | `app/tools/` | `make_logo.py` (icons, logo PNGs, the pixel mascot in the UI) and `build_zip.py` |
@@ -115,8 +115,8 @@ One engine, three ways to run it.
 | `jobs_*.py` | One file per tool: extract, reverse, retime, convert, compare, rename, plate, review |
 | `sequence.py` · `cuts.py` · `audit.py` · `compare_page.py` · `compare_export.py` | Pieces those jobs share |
 | `cli.py` · `app.py` · `api.py` · `server.py` | Command line, job runner, the API the UI calls, the local HTTP server |
-| `checkup.py` · `desktop.py` | Diagnostics and first-run setup; the UI document, window, desktop shortcut and `main()` |
-| `core.py` | One import that exposes every name above, for the launchers, the Mac app, the web worker and the tests |
+| `checkup.py` · `desktop.py` | Diagnostics and first-run setup; the UI document, browser or Electron start, desktop shortcut and `main()` |
+| `core.py` | One import that exposes every name above, for the launchers, the web worker and the tests |
 
 Launchers change runtime settings on `framing.env` (`env.SELF`, `env.BUILD`, `env.FFMPEG_HOME`, `env.RIFE_HOME`), not on `core`, so every module sees them.
 

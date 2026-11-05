@@ -32,9 +32,11 @@ class ReleaseZip:
     """Framing 폴더를 zip 하나로. 무엇을 빼고 무엇을 꼭 넣을지는 판마다 다르다."""
 
     SKIP = {ROOT / "results", APP / "work", ROOT / ".git", APP / ".venv-mac",
-            APP / "web" / "data", APP / "mac" / "build", APP / "mac" / "dist",
-            APP / "electron" / "node_modules", APP / "window-mac"}
-    SKIP_NAMES = {"__pycache__", ".gitignore", ".gitattributes", ".env"}
+            APP / "window-mac",
+            # 받는 사람이 쓰지 않는 개발용 — 깃에는 있고 zip 에는 없다
+            APP / "tests", APP / "tools", APP / "web", APP / "mac", APP / "electron",
+            ROOT / "logo", APP / ".dockerignore"}
+    SKIP_NAMES = {"__pycache__", ".gitignore", ".gitattributes", ".env", ".DS_Store"}
     EXECUTABLE = {"Framing.command"}            # Mac 에서 더블클릭으로 열리게 실행 권한을 얹는 파일
 
     def __init__(self, dest: Path) -> None:
@@ -94,6 +96,9 @@ class ReleaseZip:
 class WindowsZip(ReleaseZip):
     """내장 파이썬 · ffmpeg · RIFE 를 안은 판. Framing.bat(브라우저) · Framing_App.bat(창)."""
 
+    def skipped(self) -> set[Path]:
+        return super().skipped() | {ROOT / "Framing.command"}     # Mac 실행 파일은 Mac 판에만
+
     def needed(self) -> tuple[Path, ...]:
         return (APP / "python" / "python.exe", APP / "lib",
                 APP / "ffmpeg" / "ffmpeg.exe", APP / "ffmpeg" / "ffprobe.exe",
@@ -102,7 +107,8 @@ class WindowsZip(ReleaseZip):
     def check(self) -> None:
         super().check()
         if not (APP / "window" / "Framing.exe").exists():
-            print("[알림] app/window/Framing.exe 가 없어 창 버전은 빠집니다 (app/electron 에서 pnpm run build)")
+            raise SystemExit("app/window/Framing.exe 가 없습니다 — app/electron 에서 pnpm run build 를 먼저 하세요 "
+                             "(Framing_App.bat 이 열 창이 없는 zip 이 됩니다)")
 
 
 class MacZip(ReleaseZip):

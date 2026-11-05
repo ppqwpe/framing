@@ -71,6 +71,16 @@ class MacZipTests(unittest.TestCase):
         for path in (bz.APP / 'python', bz.APP / 'ffmpeg', bz.APP / 'window', bz.ROOT / 'Framing.bat'):
             self.assertIn(path, skipped)
 
+    def test_release_zips_leave_out_developer_folders(self):
+        windows = bz.WindowsZip(Path(self.tmp.name) / 'w.zip')
+        for release in (windows, self.mac):
+            skipped = release.skipped()
+            for path in (bz.APP / 'tests', bz.APP / 'web', bz.APP / 'mac', bz.APP / 'tools',
+                         bz.APP / 'electron', bz.ROOT / 'logo'):
+                self.assertIn(path, skipped)
+        self.assertIn(bz.ROOT / 'Framing.command', windows.skipped())
+        self.assertNotIn(bz.ROOT / 'Framing.command', self.mac.skipped())
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

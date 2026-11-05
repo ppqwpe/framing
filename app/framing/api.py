@@ -30,29 +30,21 @@ from .app import FolderOpener
 
 
 class Api:
-    """pywebview 가 화면에 노출하는 함수 묶음. 여기가 앱의 바깥 경계다."""
+    """화면(ui.html)이 로컬 서버(/call)를 거쳐 부르는 함수 묶음. 여기가 엔진의 바깥 경계다."""
 
     def __init__(self) -> None:
-        self._window = None
         self._emitter: Optional[Callable[[str, dict], None]] = None
         self._worker: Optional[threading.Thread] = None
         self._stop = threading.Event()
         self._ff = FFmpegTool(allow_download=True)
-        self._served = False                     # 화면을 로컬 서버에서 받아 오는가
         self._trouble: Optional[Callable[[], str]] = None
         self._stops: list[Callable[[], None]] = []   # 끝낼 때 차례로 부를 것들
         self._startup_paths: list[str] = []
         self._tickets: dict[str, Path] = {}      # 창 안 뷰어에 내준 파일 표
         self._pages: dict[str, str] = {}         # 서버가 내줄 대조 화면
         self._last_compare: dict = {}            # 지금 보고 있는 대조 짝 (내보내기용)
-        self._drop_ready = False
         self._rename_history = RenameHistory()
         self._operations = OperationGate()
-
-    def set_drop_ready(self, ready: bool) -> None:
-        """창이 뜬 뒤 실제로 끌어다 놓기를 걸 수 있었는지 화면에 알려준다."""
-        self._drop_ready = bool(ready)
-        self._emit('capability', {'canDrop': self._drop_ready})
 
     def carry(self, paths: Sequence[str]) -> None:
         """Framing 위에 끌어다 놓고 시작한 경우, 그 파일들을 화면에 넘겨준다."""
@@ -61,42 +53,16 @@ class Api:
     def notify(self, kind: str, text: str) -> None:
         self._emit('log', {'kind': kind, 'text': text})
 
-    def dropped(self, paths: Sequence[str]) -> None:
-        """창 위로 끌어다 놓았을 때. 진짜 경로를 화면으로 보낸다."""
-        cleaned = [str(p) for p in paths if p]
-        if cleaned:
-            self._emit('dropped', {'paths': cleaned})
-
-    def bind(self, window) -> None:
-        """
-        창 모드. **창만** 잡는다 — 파일 고르기 창, 끌어다 놓기, 닫기에 쓴다.
-
-        이벤트는 여기로 보내지 않는다. 화면으로 밀어넣는 일은 메인 스레드에서만
-        할 수 있는데 작업은 일꾼 스레드에서 돌기 때문이다. 맥에서는 그걸 어기면
-        경고가 아니라 프로세스가 죽는다. 이벤트는 서버 큐로 간다.
-        """
-        self._window = window
-        # 종료를 누르면 창이 실제로 닫혀야 한다. 예전에는 여기를 안 걸어 둬서
-        # "종료했습니다" 안내만 남고 빈 창이 그대로 떠 있었다.
-        self._stops.append(self._close_window)
-
-    def _close_window(self) -> None:
-        try:
-            self._window.destroy()
-        except Exception:
-            pass
-
     def bind_server(self, stop: Callable[[], None]) -> None:
-        """화면을 로컬 서버에서 내준다 — 창 모드에서도 그렇다.
+        """화면을 로컬 서버에서 내준다 (브라우저 · Electron 창 모두).
 
         미디어 주소가 여기에 걸린다. 자세한 이유는 _media_url 에 적어 두었다.
         """
-        self._served = True
         self._stops.append(stop)
 
     def bind_emitter(self, emitter: Callable[[str, dict], None],
                      trouble: Optional[Callable[[], str]] = None) -> None:
-        """이벤트를 큐에 쌓아 두고 화면이 가져가게 한다. 창 모드도 이 길이다."""
+        """이벤트를 큐에 쌓아 두고 화면이 /events 로 가져가게 한다."""
         self._emitter = emitter
         self._trouble = trouble
 
@@ -141,8 +107,7 @@ class Api:
             'python': sys.version.split()[0],
             'build': env.BUILD,
             'startupPaths': self._startup_paths,
-            'canDrop': self._drop_ready,
-            'trouble': self.trouble,          # 창으로 못 밀어넣은 것이 있었나
+            'trouble': self.trouble,          # 화면으로 못 보낸 소식이 있었나
             'lang': self.prefs().get('lang', ''),   # 지난번에 고른 화면 말
         }
 
@@ -155,29 +120,17 @@ class Api:
         wanted, label = self._accepts(job_key)
         language = self.prefs().get('lang', 'en')
         label = MessageCatalog().text(label, language)
-        exts = ' '.join('*' + e for e in sorted(wanted))
-        if self._window is not None:
-            try:
-                import webview
-                return list(self._window.create_file_dialog(
-                    webview.OPEN_DIALOG, allow_multiple=True,
-                    file_types=(f'{label} ({exts})', MessageCatalog().text('모든 파일 (*.*)', language))) or [])
-            except Exception:
-                pass
-        return self._tk_dialog('files')
+        return self._tk_dialog('files', label, sorted(wanted))
 
     def pick_folder(self) -> list:
-        if self._window is not None:
-            try:
-                import webview
-                return list(self._window.create_file_dialog(webview.FOLDER_DIALOG) or [])
-            except Exception:
-                pass
         return self._tk_dialog('folder')
 
     @staticmethod
-    def _tk_dialog(kind: str) -> list:
-        """창이 없을 때(브라우저 모드) 쓰는 기본 파일 대화상자."""
+    def _tk_dialog(kind: str, label: str = '', extensions: Sequence[str] = ()) -> list:
+        """
+        브라우저 모드의 파일 대화상자 (tkinter). Electron 창은 화면 쪽에서 OS 대화상자를 쓰므로
+        여기까지 오지 않는다. 내장 파이썬(Windows)에는 tkinter 가 없어 빈 목록 — 화면이 붙여넣기를 권한다.
+        """
         try:
             import tkinter
             from tkinter import filedialog
@@ -190,7 +143,8 @@ class Api:
             if kind == 'folder':
                 picked = filedialog.askdirectory()
                 return [picked] if picked else []
-            picked = filedialog.askopenfilenames()
+            types = [(label, ' '.join('*' + e for e in extensions))] if extensions else []
+            picked = filedialog.askopenfilenames(filetypes=types + [('*', '*.*')])
             return list(picked or [])
         finally:
             root.destroy()
@@ -447,21 +401,7 @@ class Api:
     def project_save(self, data: dict) -> dict:
         try:
             document = ProjectDocument.dumps(data)
-            if self._window is not None:
-                import webview
-                choice = self._window.create_file_dialog(webview.SAVE_DIALOG,
-                    save_filename='Framing.framing.json', file_types=('Framing (*.framing.json)',))
-                if not choice: return {'ok': True, 'cancelled': True}
-                destination = Path(choice[0] if isinstance(choice, (tuple, list)) else choice)
-                if not destination.name.endswith('.framing.json'):
-                    destination = destination.with_name(destination.name + '.framing.json')
-                temporary = destination.with_name('.' + destination.name + '.' + uuid.uuid4().hex + '.tmp')
-                try:
-                    temporary.write_text(document, encoding='utf-8')
-                    temporary.replace(destination)
-                finally:
-                    if temporary.exists(): temporary.unlink()
-                return {'ok': True, 'path': str(destination)}
+            # 저장 위치는 화면(브라우저 다운로드)이 정한다
             return {'ok': True, 'document': document, 'filename': 'Framing.framing.json'}
         except (FramingError, OSError, TypeError, ValueError) as exc:
             return {'ok': False, 'error': str(exc)}
@@ -508,26 +448,17 @@ class Api:
         except OSError as exc:
             return {'ok': False, 'error': f'바꾸지 못했습니다: {exc}'}
 
-    # --- 창 안에서 대조 보여주기 -----------------------------------------
+    # --- 화면 안에서 대조 보여주기 ---------------------------------------
 
     def _media_url(self, path: str) -> str:
         """
-        이 화면이 읽을 수 있는 주소로 바꾼다.
-
-        서버가 있으면 무조건 서버로 흘려보낸다 — 창 모드에서도.
-
-        예전에는 창 모드일 때 file:// 주소를 그대로 넘겼다. 화면이 file:// 이니
-        읽히겠거니 했는데, 대조 화면은 iframe 의 srcdoc 안에서 산다. srcdoc 문서는
-        출처가 비어 있어서(about:srcdoc) 크로미움·WebView2 가 그 안에서 file:// 을
-        읽는 것을 막는다. 그래서 창은 떠도 영상 자리가 까맣게 남았다.
-        그때 <video> 가 남기는 것은 error.code 4 — "이 src 는 못 연다" 다.
+        이 화면이 읽을 수 있는 주소로 바꾼다. 영상은 늘 로컬 서버(/media)를 거친다 —
+        대조 화면은 iframe 안에 살아서 file:// 을 직접 읽지 못한다.
 
         경로를 그대로 주소에 싣지 않고 표를 끊어 주는 이유는, 열어 준 적 없는 파일을
         주소만 바꿔 넣어 읽어 가지 못하게 하려는 것이다.
         """
         real = Path(path)
-        if not self._served and self._window is not None:
-            return real.as_uri()          # 서버 없이 띄운 창 (옛 길)
         token = uuid.uuid4().hex[:16]
         self._tickets[token] = real
         return f'/media/{token}{real.suffix.lower()}'
@@ -543,11 +474,8 @@ class Api:
         """
         대조 화면을 서버에 세워 두고 주소를 돌려준다.
 
-        예전에는 이 15KB 짜리 글을 통째로 화면으로 밀어 넣어 srcdoc 에 붙였다.
-        두 가지가 나빴다. 창 모드에서는 그 큰 글이 evaluate_js 한 줄에 실려
-        가는데 도중에 조용히 흘리면 아무 일도 안 일어난 것처럼 보였고,
-        srcdoc 문서는 출처가 없어서 그 안에서 영상 파일을 읽지 못했다.
-        주소 하나만 보내면 둘 다 없어진다 — 화면은 그냥 그 주소를 연다.
+        15KB 짜리 화면을 통째로 보내지 않고 주소 하나만 보낸다 — 화면은 그 주소를 연다.
+        srcdoc 로 붙이면 출처가 없어 그 안에서 영상 파일을 읽지 못한다.
 
         지난 것은 몇 개만 남긴다. 창을 닫을 때까지 계속 쌓일 이유가 없다.
         """
@@ -558,7 +486,7 @@ class Api:
         return f'/compare/{token}.html'
 
     def show_compare(self, html: str, facts: dict) -> bool:
-        """엔진이 만든 뷰어를 창 안으로 넘긴다. 넘겼으면 True."""
+        """엔진이 만든 뷰어를 화면으로 넘긴다. 넘겼으면 True."""
         if self._emitter is None:
             return False
         try:

@@ -6,7 +6,6 @@ python
 lib
 ffmpeg
 rife
-mac
 tests
 work
 *.zip

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime
 import importlib
+import os
 import subprocess
 import sys
 import traceback
@@ -55,8 +56,8 @@ class Checkup:
             return sys.platform
 
     def _how(self) -> str:
-        where = '창' if self._api._window is not None else '브라우저'
-        return f"{where}  ·  화면은 {'서버' if self._api._served else '파일'} 에서"
+        where = 'Electron 창' if os.environ.get('FRAMING_MODE', '').lower() == 'electron' else '브라우저'
+        return f"{where}  ·  화면은 로컬 서버에서"
 
     def _ffmpeg(self) -> str:
         spot = self._api._ff.find('ffmpeg') or ''
@@ -74,7 +75,7 @@ class CrashNote:
     """
     시작하다 넘어졌을 때 남기는 쪽지.
 
-    창 모드에는 열어 볼 콘솔이 없고, 윈도우에서 배치로 열면 넘어지는 순간
+    Electron 창에는 열어 볼 콘솔이 없고, 윈도우에서 배치로 열면 넘어지는 순간
     검은 창이 그대로 닫힌다. 쓰는 사람 눈에는 "눌렀는데 아무 일도 안 일어남"
     으로만 보인다 — 물어봐도 답할 말이 없다.
 
@@ -249,7 +250,7 @@ class SetupWizard:
         for step in failed:
             print(f"    · {step.title}")
         print("\n  인터넷 연결이나 회사망 차단을 확인해 주세요.")
-        print(f"  직접 챙기려면:  {sys.executable} -m pip install opencv-python-headless pywebview")
+        print(f"  직접 챙기려면:  {sys.executable} -m pip install opencv-python-headless")
         if sys.platform == "darwin":
             print("  맥에서 권한 때문에 막히면 앞에 --user 를 붙여 보세요.")
         print()

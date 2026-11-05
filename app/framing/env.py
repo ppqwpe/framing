@@ -60,7 +60,7 @@ OPENCV_PACKAGES = ("opencv-python-headless", "opencv-python")
 BOOTSTRAP_FLAG = "FRAMING_BOOTSTRAPPED"
 
 HERE = Path(__file__).resolve().parent
-# 앱에 묶어 둔 도구 자리. 실행 껍데기(main.py · Mac 앱)가 환경변수로 알려 주면 그쪽을 본다
+# 앱에 묶어 둔 도구 자리. 실행 껍데기(main.py)가 환경변수로 알려 주면 그쪽을 본다
 FFMPEG_HOME = Path(os.environ.get("FRAMING_FFMPEG_HOME") or HERE / "_ffmpeg")
 RIFE_HOME = Path(os.environ.get("FRAMING_RIFE_HOME") or HERE / "_rife")
 

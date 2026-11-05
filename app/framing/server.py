@@ -181,8 +181,8 @@ class HttpByteRange:
 
 class LocalServer:
     """
-    창을 못 띄우는 환경을 위한 대비책. 127.0.0.1 에만 열고, 기본 브라우저로 띄운다.
-    화면은 창 모드와 같은 framing_ui.html 이고, 파이썬도 같은 Api 를 쓴다.
+    엔진의 로컬 서버. 127.0.0.1 에만 연다. 브라우저도 Electron 창도 이 주소에서 화면(ui.html)을
+    받고, /call 로 Api 를 부르고, /events 로 소식을 가져간다.
     """
 
     def __init__(self, api: "Api", ui: "UiDocument") -> None:
