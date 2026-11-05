@@ -12,8 +12,11 @@ Everything is processed on your own machine (or your own server for the web vers
 On first launch it puts a Framing shortcut with the app icon on your desktop.
 `Framing_App.bat` (or `app\window\Framing.exe`) opens the same tool in its own window instead of the browser, with the system file dialogs and drag and drop from Explorer.
 
-**Mac.** Double-click `Framing.command`. The first run sets up Python packages in `app/.venv-mac` (about a minute) and needs FFmpeg from Homebrew (`brew install ffmpeg`).
-To build a real `Framing.app`, run `app/mac/Mac에서_빌드.command` on a Mac; see [app/mac/README.md](app/mac/README.md).
+**Mac.** Download `Framing_1.0_mac_arm64.zip` (Apple Silicon) or `Framing_1.0_mac_x64.zip` (Intel), extract it, and double-click `Framing.command`.
+It needs Python 3.10+ and FFmpeg from Homebrew (`brew install python@3.12 ffmpeg`).
+The first run sets up Python packages in `app/.venv-mac` (about a minute), signs `app/window/Framing.app` for your Mac, and opens it. After that you can open `Framing.app` directly.
+Framing has no Apple developer signature, so macOS may block `Framing.command` the first time: open **System Settings → Privacy & Security** and click **Open Anyway**, or run `xattr -cr` on the Framing folder in Terminal.
+The older PyInstaller build (`app/mac/Mac에서_빌드.command`) still works; see [app/mac/README.md](app/mac/README.md).
 
 **Web.** `app/web` is a Docker Compose service with HTTPS through Caddy, for a small team behind one shared password. See [app/web/README.md](app/web/README.md).
 
@@ -58,14 +61,16 @@ Run the tests after any change. All of them should pass.
 app\python\python.exe app\tests\run_tests.py
 ```
 
-The window version is Electron. Its `node_modules` and the built `app/window` are not in Git (about 300 MB each). In `app/electron`, `pnpm install` once lets `Framing_App.bat` run it from source, and `pnpm run build` makes `app/window/Framing.exe` for the release zip.
+The window version is Electron (`app/electron`). Its `node_modules`, the built `app/window` and the Mac runtimes in `app/window-mac` are not in Git.
+In `app/electron`, `pnpm install` once lets `Framing_App.bat` run it from source, `pnpm run build` makes `app/window/Framing.exe` (or `Framing.app` on a Mac), and `pnpm run build:mac` downloads the two Mac Electron runtimes the Mac zips are built from.
 
 A few UI checks need Node.js on `PATH`; without it they are skipped and reported. The web service has its own tests in `app/web/tests`.
 
-Build a new Windows release zip like this (run `pnpm run build` in `app/electron` first so the window is included). It lands next to the repo folder as `Framing_1.0_windows.zip`.
+Build the release zips like this (run `pnpm run build` and `pnpm run build:mac` in `app/electron` first). They land next to the repo folder: `Framing_1.0_windows.zip`, `Framing_1.0_mac_arm64.zip` and `Framing_1.0_mac_x64.zip`.
+No Mac is needed for the Mac zips: `Framing.app` is copied entry by entry out of Electron's own Mac zip (symlinks and permissions kept) and renamed.
 
 ```
-app\python\python.exe app\tools\build_zip.py
+app\python\python.exe app\tools\build_zip.py --all
 ```
 
 ### Layout
@@ -76,7 +81,7 @@ One engine, three ways to run it.
 |---|---|
 | `Framing.bat` | Windows launcher: embedded Python, opens the UI in the browser |
 | `Framing_App.bat` | Windows launcher for the Electron window (`app/electron`) |
-| `Framing.command` | Mac launcher from source: venv + Homebrew FFmpeg, same UI in the browser |
+| `Framing.command` | Mac launcher: venv + Homebrew FFmpeg, then opens `app/window/Framing.app` (or the browser UI); with arguments, the command-line tool |
 | `app/main.py` | Entry point both launchers run; with arguments it is the command-line tool |
 | `app/framing/` | The engine, split by job (see below), and the whole desktop UI in one file (`ui.html`) |
 | `app/electron/` | Electron window: starts the engine with `FRAMING_MODE=electron`, opens its address, stops it on close; `build.js` makes `app/window/Framing.exe` |
@@ -110,7 +115,7 @@ To change the logo, edit `app/tools/make_logo.py` and run it. It rewrites the ic
 ### Workflow
 
 Keep `main` releasable at all times. Make changes on a separate branch, and merge into `main` once the tests pass.
-To ship, build the zip with `build_zip.py` and attach it to a new GitHub Release with a version number (v1.1 and so on).
+To ship, build the zips with `build_zip.py --all` and attach them to a new GitHub Release with a version number (v1.1 and so on).
 
 ## Bundled components and licenses
 

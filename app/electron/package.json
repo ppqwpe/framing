@@ -7,7 +7,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "node build.js"
+    "build": "node build.js",
+    "build:mac": "node build.js --mac"
   },
   "devDependencies": {
     "@electron/packager": "^18.4.4",

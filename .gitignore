@@ -20,3 +20,4 @@ app/rife/
 # Electron 창 (app/electron 에서 pnpm install)
 app/electron/node_modules/
 app/window/
+app/window-mac/

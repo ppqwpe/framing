@@ -22,8 +22,8 @@ os.environ.setdefault("FRAMING_DETACHED", "1")         # 콘솔을 떼지 않는
 
 from framing import core, env  # noqa: E402
 
-if os.environ.get("FRAMING_LAUNCHER"):
-    env.SELF = Path(os.environ["FRAMING_LAUNCHER"])   # 도움말 이름 · 바탕화면 바로가기가 Framing.bat 을 가리키게
+# 도움말 이름 · 바탕화면 바로가기가 Framing.bat 을 가리키게. 런처 없이 직접 돌리면 이 파일 (env.py 가 아니라)
+env.SELF = Path(os.environ.get("FRAMING_LAUNCHER") or __file__).resolve()
 
 if __name__ == "__main__":
     sys.exit(core.main())

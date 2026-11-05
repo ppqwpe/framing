@@ -21,6 +21,7 @@ class ElectronEngineTests(unittest.TestCase):
         finally:
             if child.poll() is None:
                 child.kill()
+            child.stdout.close()
 
     def _smoke(self, command):
         with tempfile.TemporaryDirectory() as name:

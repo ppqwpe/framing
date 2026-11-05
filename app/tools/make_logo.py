@@ -1,6 +1,6 @@
 """Framing 로고 만들기 — 앱 아이콘(ico · png), 따로 쓸 로고 PNG 묶음, 화면 속 픽셀 마스코트
 
-  app/icon/framing.ico · framing.png              앱 · 바로가기 · 창 아이콘
+  app/icon/framing.ico · framing.png · framing.icns  앱 · 바로가기 · 창 아이콘 (icns 는 Mac)
   logo/framing_icon_{1024,512,256,128,64,32}.png  아이콘만 (투명 바탕)
   logo/framing_logo_dark.png · _light.png         아이콘 + 픽셀 글자 (어두운 · 밝은 바탕용, 투명)
   logo/framing_text_dark.png · _light.png         픽셀 글자만 — i 의 점은 뷰파인더와 같은 빨강
@@ -149,7 +149,8 @@ class Logo:
         app_icon.mkdir(exist_ok=True)
         icon.resize((256, 256), Image.LANCZOS).save(app_icon / "framing.png")
         icon.save(app_icon / "framing.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-        out += [app_icon / "framing.png", app_icon / "framing.ico"]
+        icon.save(app_icon / "framing.icns")      # Mac 창(Framing.app) 아이콘
+        out += [app_icon / "framing.png", app_icon / "framing.ico", app_icon / "framing.icns"]
         folder = ROOT / "logo"
         for size in (1024, 512, 256, 128, 64, 32):
             p = folder / f"framing_icon_{size}.png"
