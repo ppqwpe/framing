@@ -7,17 +7,102 @@ import os
 import tempfile
 from contextlib import AbstractContextManager
 from pathlib import Path
+from typing import Optional
 
 from .errors import FramingError
 from .options import JobResult
 from .env import cv2
 from .util import Console, FrameRate, ImageIO, human, unique_path
 from .media import collect_images
-from .frames import ColorProfile
+from .frames import ColorProfile, TransferCurve
 from .job import Job
 
 
 """Reusable sequence input and file delivery for media conversion."""
+
+
+class SequenceNaming:
+    """
+    원본 시퀀스의 이름 · 시작 번호 · 자릿수 · 확장자를 그대로 이어받는다.
+
+    plate.1001.exr 을 넣었는데 rev.0001.png 가 나오면 누크 Read 노드의 프레임 범위와
+    경로를 다시 잡아야 한다. 그래서 결과는 plate_reversed.1001.exr 처럼 꼬리만 붙인다.
+    """
+
+    PATTERN = __import__("re").compile(r"^(.*?)(\d+)(\.[^.]+)$")
+
+    def __init__(self, core: str, sep: str, start: int, pad: int, ext: str) -> None:
+        self.core, self.sep, self.start, self.pad, self.ext = core, sep, start, pad, ext
+
+    @classmethod
+    def of(cls, images, folder: Path) -> "SequenceNaming":
+        first = Path(images[0])
+        found = cls.PATTERN.match(first.name)
+        if not found:
+            return cls(first.stem, ".", 1, 4, first.suffix)
+        prefix, digits, ext = found.groups()
+        core = prefix.rstrip("._- ")
+        sep = prefix[len(core):] or "."
+        return cls(core or Path(folder).name, sep, int(digits), max(4, len(digits)), ext)
+
+    def name(self, index: int, tail: str = "", ext: str = "") -> str:
+        """index 는 0부터. 결과 번호는 원본 시작 번호에서 이어진다."""
+        return f"{self.core}{tail}{self.sep}{self.start + index:0{self.pad}d}{ext or self.ext}"
+
+    def pattern(self, tail: str = "", ext: str = "") -> str:
+        """ffmpeg 이미지 패턴 (-start_number 와 같이 쓴다)."""
+        return f"{self.core}{tail}{self.sep}%0{self.pad}d{ext or self.ext}"
+
+    @staticmethod
+    def linear(ext: str) -> bool:
+        """EXR 은 선형 값이다. 영상으로 묶을 때는 bt709 곡선을 씌워야 제 밝기가 된다."""
+        return ext.lower() == ".exr"
+
+
+class SequenceOutput:
+    """
+    시퀀스를 받아 시퀀스로 돌려줄 때의 이름 · 형식 · 비트 깊이.
+
+    들어온 형식 그대로 쓴다 — EXR 은 float EXR(선형 · 1.0 넘는 값 유지), DPX 는 원본과 같은
+    비트 깊이의 DPX, PNG · TIFF 는 그대로. 결과 번호는 원본 시작 번호에서 이어진다.
+    """
+
+    WRITABLE = {".png", ".tif", ".tiff", ".exr", ".dpx", ".jpg", ".jpeg"}
+
+    def __init__(self, naming: SequenceNaming, tail: str, dpx_bits: int) -> None:
+        self._naming, self._tail, self.dpx_bits = naming, tail, dpx_bits
+        self.ext = naming.ext if naming.ext.lower() in self.WRITABLE else ".png"
+        self.start = naming.start
+
+    @classmethod
+    def of(cls, folder: Path, tail: str = "_retimed") -> "Optional[SequenceOutput]":
+        images = collect_images(folder)
+        if not images:
+            return None
+        naming = SequenceNaming.of(images, folder)
+        bits = 0
+        if naming.ext.lower() == ".dpx":
+            from .util import FFImage
+            pix = FFImage.pixel_format(images[0])
+            bits = 10 if "10" in pix else 16
+        return cls(naming, tail, bits)
+
+    def name(self, index: int) -> str:
+        return self._naming.name(index, self._tail, self.ext)
+
+    def pattern(self) -> str:
+        return self._naming.pattern(self._tail, self.ext)
+
+    def curve(self, alpha: bool = False) -> str:
+        """영상으로 묶을 때 씌울 곡선 필터. EXR 이 아니면 빈 문자열."""
+        return TransferCurve.filter("to_rec709", alpha) if SequenceNaming.linear(self.ext) else ""
+
+    def ready(self, frame):
+        """형식이 못 담는 값만 맞춘다. float 를 PNG 에 쓸 수는 없다."""
+        if frame.dtype.kind == "f" and self.ext.lower() != ".exr":
+            import numpy as _np
+            return (_np.clip(frame, 0, 1) * 65535).astype(_np.uint16)
+        return frame
 
 
 def bounded_number(value, label, low, high):
@@ -105,8 +190,18 @@ class SequenceMovieJob(Job):
                     Console.info('MP4에는 알파가 저장되지 않습니다. 알파가 필요하면 ProRes를 선택하세요.')
             with tempfile.TemporaryDirectory(prefix='framing_movie_', dir=destination.parent) as temp:
                 movie = Path(temp) / destination.name
-                code = self._ff.run(['-y', *source.args, '-vf', f'fps={source.rate.text},' + ColorProfile().to_yuv_filter(),
-                                     *codec, '-frames:v', str(len(source.images)), '-an', str(movie)],
+                # EXR 은 선형 값이라 곡선 없이 담으면 어둡다. 읽을 때 bt709 곡선을 씌운다.
+                linear = SequenceNaming.linear(source.images[0].suffix)
+                if linear:
+                    Console.info('EXR 은 선형입니다 — Rec.709 곡선을 씌워 영상으로 묶습니다')
+                # 4444 로 갈 때 RGB→YUV 변환식을 끼우면 알파가 거기서 죽는다 (Delivery.needs_yuv 와 같은 이유)
+                keep_alpha = prores and alpha
+                shape = ColorProfile.join(f'fps={source.rate.text}',
+                                          TransferCurve.filter('to_rec709', keep_alpha) if linear else '',
+                                          '' if keep_alpha else ColorProfile().to_yuv_filter())
+                code = self._ff.run(['-y', *source.args, *shape,
+                                     *codec, *ColorProfile().stamp_args(),
+                                     '-frames:v', str(len(source.images)), '-an', str(movie)],
                                     total_seconds=source.duration)
                 self._abort_if_asked()
                 if code or not movie.is_file():

@@ -10,9 +10,10 @@ from .errors import FramingError
 from .options import JobResult
 from .util import Console, FrameRate, Progress, hms
 from .media import ProbeInfo, collect_images
-from .frames import ColorProfile, PixelPlan
+from .frames import ColorProfile, PixelPlan, TransferCurve
 from .job import Job
 from .jobs_extract import Delivery
+from .sequence import SequenceNaming
 
 
 class ReverseJob(Job):
@@ -36,8 +37,9 @@ class ReverseJob(Job):
       알파가 있으면     ProRes 4444 mov — 투명도를 지키려고
     무엇이 들어오든 h264 로 내보내면 순서 바꾸려다 원본 계조와 알파를 죽이게 됩니다.
 
-    시퀀스 폴더를 넣고 seq · both 로 받으면 파일을 역순으로 복사만 합니다 —
-    픽셀은 손대지 않습니다.
+    시퀀스 폴더를 넣으면 (auto · seq · both) 파일을 역순으로 복사만 합니다 —
+    픽셀도 형식도 그대로. 이름 · 시작 번호 · 자릿수도 원본을 따릅니다
+    (plate.1001.exr → plate_reversed.1001.exr). 영상 하나만 원하면 mp4 · mov 로 고르세요.
 
     소스의 색 규격(bt709 / bt601 · 제한범위 / 전체범위)은 결과에 그대로 찍어 둡니다.
     안 찍어 두면 다음 도구가 추측하고, 그 추측이 어긋나는 게 색이 밀리는 진짜 원인입니다.
@@ -67,7 +69,10 @@ class ReverseJob(Job):
         images = collect_images(target)
         if not images:
             raise FramingError("이미지가 없습니다.")
-        how = Delivery.pick(self._opt.delivery)
+        # 시퀀스를 넣었으면 시퀀스로 돌려준다. 알아서(auto)가 EXR 을 mp4 로 바꾸면
+        # 선형 float 이 8bit 로 깎이고 형식까지 달라진다 — 합성에서 쓸 수 없는 결과다.
+        key = (self._opt.delivery or "auto").lower()
+        how = Delivery.pick("seq" if key == "auto" else key)
         if how.keeps_frames:
             return self._reverse_into(target, images, how,
                                       self._output_dir(target, "_reversed"), keep=True)
@@ -80,20 +85,26 @@ class ReverseJob(Job):
     def _reverse_into(self, target: Path, images: Sequence[Path], how: Delivery,
                       folder: Path, keep: bool) -> JobResult:
         result = JobResult(target=target)
-        ext = images[0].suffix
+        naming = SequenceNaming.of(images, target)
         total = len(images)
-        for i, source in enumerate(reversed(images), 1):
+        written = []
+        for i, source in enumerate(reversed(images)):
             self._abort_if_asked()
-            shutil.copyfile(source, folder / f"rev.{i:04d}{ext}")
-            Progress.tick(i, total)
+            destination = folder / naming.name(i, "_reversed")
+            shutil.copyfile(source, destination)
+            written.append(destination)
+            Progress.tick(i + 1, total)
+        last = naming.start + total - 1
         if keep:
-            result.outputs = sorted(folder.glob(f"rev.*{ext}"))
+            result.outputs = written
             result.output_dir = folder
-            result.message = f"{total}프레임 역순 복사 (픽셀 그대로)"
+            result.message = (f"{total}프레임 역순 복사 (픽셀 그대로) · "
+                              f"{naming.name(0, '_reversed')} … {last}")
         else:
             result.output_dir = target.parent
             result.message = f"{total}프레임 역순"
-        made = self._mux(folder, f"rev.%04d{ext}", total, how, target)
+        made = self._mux(folder, naming.pattern("_reversed"), total, how, target,
+                         start=naming.start, linear=SequenceNaming.linear(naming.ext))
         if made:
             result.outputs.append(made)
             result.message += f"  ·  {made.name}"
@@ -104,7 +115,8 @@ class ReverseJob(Job):
 
     def _mux(self, folder: Path, pattern: str, total: int,
              how: Delivery, target: Path,
-             profile: Optional[ColorProfile] = None) -> Optional[Path]:
+             profile: Optional[ColorProfile] = None,
+             start: int = 1, linear: bool = False) -> Optional[Path]:
         """
         뒤집힌 프레임들을 영상 하나로 묶는다.
 
@@ -126,8 +138,11 @@ class ReverseJob(Job):
         Console.info(f"묶기  {why}")
         made = (folder / f"reversed_{total}f{ext}" if how.keeps_frames
                 else self._output_file(target, "_reversed", ext))
-        shape = ["-vf", profile.to_yuv_filter()] if Delivery.needs_yuv(encoder) else []
-        code = self._ff.run(["-y", "-framerate", str(self._opt.fps),
+        yuv = Delivery.needs_yuv(encoder)
+        # EXR 은 선형이다. 곡선 없이 영상에 담으면 어둡게 나온다 — Rec.709 곡선을 씌운다
+        curve = TransferCurve.filter("to_rec709", alpha=not yuv) if linear else ""
+        shape = ColorProfile.join(curve, profile.to_yuv_filter() if yuv else "")
+        code = self._ff.run(["-y", "-framerate", str(self._opt.fps), "-start_number", str(start),
                              "-i", str(folder / pattern), *shape, *encoder,
                              *profile.stamp_args(), "-an", str(made)], quiet=True)
         return made if code == 0 and made.exists() else None

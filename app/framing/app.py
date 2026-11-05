@@ -22,9 +22,11 @@ if TYPE_CHECKING:   # 타입 표기에만 쓰는 이름
 
 
 class Application:
-    def __init__(self, options: Options, ff: FFmpegTool) -> None:
+    def __init__(self, options: Options, ff: FFmpegTool, open_result: bool = True) -> None:
         self._opt = options
         self._ff = ff
+        # --no-pause 는 스크립트에서 부른다는 뜻이다. 그때 결과 폴더를 띄우면 돌릴 때마다 창이 쌓인다.
+        self._open_result = open_result
         # 앱에서 중단 버튼을 누르면 이걸 갈아끼운다. CLI 에서는 늘 False.
         self.should_stop: Callable[[], bool] = lambda: False
 
@@ -111,7 +113,7 @@ class Application:
         Console.info("원본은 건드리지 않았습니다.")
 
         first = next((r.output_dir for r in results if r.ok and r.output_dir), None)
-        if first and is_interactive():
+        if first and self._open_result and is_interactive():
             self._open_folder(first)
         return 0 if not failed else 1
 

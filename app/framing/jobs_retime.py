@@ -17,6 +17,7 @@ from .retime import BlendEngine, DuplicateEngine, MotionEngine, RetimeEngine, Re
 from .job import Job
 from .plate import PlateSpec, RetimeBundle, StretchNote
 from .jobs_extract import Delivery
+from .sequence import SequenceOutput
 
 if TYPE_CHECKING:   # 타입 표기에만 쓰는 이름
     from .env import np
@@ -154,7 +155,10 @@ class RetimeJob(Job):
         그렸다가 영상만 남기고 치운다.
         """
         result = JobResult(target=target)
-        how = Delivery.pick(self._opt.delivery)
+        key = (self._opt.delivery or "auto").lower()
+        self._naming = SequenceOutput.of(target) if target.is_dir() else None
+        # 시퀀스를 넣었으면 같은 형식의 시퀀스로 돌려준다 (EXR 은 EXR, DPX 는 DPX)
+        how = Delivery.pick("seq" if self._naming and key == "auto" else key)
         keep = how.keeps_frames
         folder = (self._retime_folder(target) if keep
                   else Path(tempfile.mkdtemp(prefix="framing_retime_out_")))
@@ -422,9 +426,16 @@ class RetimeJob(Job):
                 folder: Path, plan: RetimePlan) -> list[Path]:
         made: list[Path] = []
 
+        naming = getattr(self, "_naming", None)
+
         def write(position: int, frame: "np.ndarray") -> None:
-            destination = folder / f"out.{position + 1:04d}.png"
-            if not ImageIO.write(destination, frame):
+            if naming:
+                destination = folder / naming.name(position)
+                saved = ImageIO.write(destination, naming.ready(frame), dpx_bits=naming.dpx_bits)
+            else:
+                destination = folder / f"out.{position + 1:04d}.png"
+                saved = ImageIO.write(destination, frame)
+            if not saved:
                 raise FramingError(f"저장 실패: {destination.name}")
             made.append(destination)
             Progress.tick(position + 1, plan.target)
@@ -476,11 +487,22 @@ class RetimeJob(Job):
                 else self._output_file(target, "_retimed", ext))
         # 규격이 안 적힌 소스도 profile 이 스스로 안다 (read_matrix) —
         # 예전엔 여기서 빈 프로필로 갈아치웠고, 그게 색이 밀리던 자리였다.
-        shape = (["-vf", profile.to_yuv_filter()]
-                 if Delivery.needs_yuv(encoder) else [])
+        yuv = Delivery.needs_yuv(encoder)
+        shape = ["-vf", profile.to_yuv_filter()] if yuv else []
+        naming = getattr(self, "_naming", None)
+        if naming:
+            source = ["-start_number", str(naming.start), "-i", str(folder / naming.pattern())]
+            shape = ColorProfile.join(naming.curve(alpha=not yuv),
+                                      ColorProfile().to_yuv_filter() if yuv else "")
+            tags = ColorProfile().stamp_args()
+        else:
+            source, tags = ["-i", str(folder / "out.%04d.png")], profile.tag_args()
+            info = self._ff.probe(target) if self._ff.find("ffprobe") else None
+            if info and info.timecode:
+                tags += info.timecode_args()          # 길이는 바뀌어도 시작 타임코드는 원본 그대로
+                Console.info(f"타임코드  {info.timecode} 에서 시작 (원본과 같음)")
         code = self._ff.run(["-y", "-framerate", FrameRate.from_value(plan.fps).text,
-                             "-i", str(folder / "out.%04d.png"), *shape,
-                             *encoder, *profile.tag_args(), *extra, "-an",
+                             *source, *shape, *encoder, *tags, *extra, "-an",
                              str(made)], quiet=True)
         return made if code == 0 and made.exists() else None
 

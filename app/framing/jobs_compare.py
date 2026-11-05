@@ -12,7 +12,7 @@ from .options import JobResult
 from .env import VIDEO_EXTENSIONS
 from .util import Console, FrameRate, Scratch, hms, link_or_copy, open_externally
 from .media import ProbeInfo
-from .frames import ColorProfile
+from .frames import ColorProfile, TransferCurve
 from .job import Job
 from .compare_page import ComparePage
 
@@ -323,15 +323,17 @@ class PlayableProxy:
         """해 볼 방법들. 위에서부터 하나씩, 되는 게 나올 때까지."""
         if not video:
             png = self._folder / f"{name}.png"
-            return [
+            plain = [
                 (png, ["-y", "-i", str(path), "-frames:v", "1",
                        "-pix_fmt", "rgb24", str(png)]),
-                # EXR · HDR 처럼 선형으로 담긴 그림은 그냥 뽑으면 새까맣게 나온다
-                (png, ["-y", "-apply_trc", "iec61966_2_1", "-i", str(path),
-                       "-frames:v", "1", "-pix_fmt", "rgb24", str(png)]),
                 (png, ["-y", "-i", str(path), "-vf", "format=rgb24",
                        "-frames:v", "1", str(png)]),
             ]
+            if path.suffix.lower() != ".exr":
+                return plain
+            # EXR 은 선형이라 그냥 뽑으면 어둡게 나온다 — sRGB 곡선을 씌워 본다 (누크 뷰어 sRGB 와 같은 그림)
+            return [(png, ["-y", "-i", str(path), "-vf", TransferCurve.filter("to_srgb"),
+                           "-frames:v", "1", "-pix_fmt", "rgb24", str(png)])] + plain
 
         mp4 = self._folder / f"{name}.mp4"
         webm = self._folder / f"{name}.webm"

@@ -275,6 +275,17 @@ class ProbeInfo:
     color_transfer: str = ""
     color_space: str = ""          # 매트릭스. bt709 / bt470bg / smpte170m …
     reported_frames: int = 0       # Prefer the video stream's count over duration estimates.
+    timecode: str = ""             # 시작 타임코드 (01:00:00:00). 없으면 빈칸
+    audio_bits: int = 0            # 소리의 비트 깊이 (pcm 24bit 면 24)
+
+    def timecode_args(self) -> list[str]:
+        """
+        결과 영상에 원본 시작 타임코드를 그대로 단다.
+
+        리타임 · 플레이트 · 홀드는 길이가 바뀌어도 시작점은 원본과 같다. 타임코드가 빠지면
+        편집 · 컨폼에서 이 플레이트가 어디서 왔는지 다시 찾아야 한다.
+        """
+        return ["-timecode", self.timecode] if self.timecode else []
 
     @property
     def color_metadata(self) -> dict:
@@ -299,6 +310,47 @@ class ProbeInfo:
         if not math.isfinite(duration) or not math.isfinite(self.fps) or duration <= 0 or self.fps <= 0:
             return 0
         return max(1, int(round(duration * self.fps)))
+
+
+class OutputColorTags:
+    """
+    출력 쪽 색 표기(-color_primaries · -color_trc · -colorspace · -color_range)를 setparams 필터로도 건다.
+
+    ffmpeg 9 는 그림 파일(PNG 등)이나 필터를 거쳐 온 프레임에 이미 "모름" 이 적혀 있으면
+    출력 옵션으로 준 primaries · transfer 를 무시하고 매트릭스 · 범위만 남긴다. 재 보니
+    리타임 · 플레이트 · 시퀀스→영상 결과가 전부 bt709 색역 · 전달 표기를 잃고 있었다.
+    프레임 자체에 setparams 로 적으면 인코더가 그대로 받는다.
+    """
+
+    FLAGS = {"-color_primaries": "color_primaries", "-color_trc": "color_trc",
+             "-colorspace": "colorspace", "-color_range": "range"}
+    SETPARAMS_NAME = {"rgb": "gbr"}         # 인코더 이름 → setparams 이름
+
+    @classmethod
+    def fold(cls, args: Sequence[str]) -> list[str]:
+        args = list(args)
+        if "-filter_complex" in args or not args:
+            return args
+        last_input = max((i for i, a in enumerate(args) if a == "-i"), default=-1)
+        tail = args[last_input + 2:] if last_input >= 0 else args
+        for i, a in enumerate(tail[:-1]):
+            if a in ("-c:v", "-vcodec", "-c") and tail[i + 1] == "copy":
+                return args
+        values = {}
+        for i, a in enumerate(tail[:-1]):
+            if a in cls.FLAGS:
+                value = cls.SETPARAMS_NAME.get(tail[i + 1], tail[i + 1])
+                if not (a == "-colorspace" and value == "gbr"):
+                    values[cls.FLAGS[a]] = value
+        if not values:
+            return args
+        stamp = "setparams=" + ":".join(f"{k}={v}" for k, v in values.items())
+        start = last_input + 2 if last_input >= 0 else 0
+        for i in range(len(args) - 2, start - 1, -1):
+            if args[i] in ("-vf", "-filter:v"):
+                args[i + 1] = f"{args[i + 1]},{stamp}"
+                return args
+        return args[:-1] + ["-vf", stamp, args[-1]]
 
 
 class FFmpegTool:
@@ -571,6 +623,10 @@ class FFmpegTool:
                     pass
             elif kind == "audio" and not info.acodec:
                 info.acodec = stream.get("codec_name") or ""
+                info.audio_bits = int(stream.get("bits_per_raw_sample") or stream.get("bits_per_sample") or 0)
+            # 시작 타임코드는 tmcd 트랙 · 영상 스트림 · 포맷 어디에든 적힐 수 있다
+            info.timecode = info.timecode or (stream.get("tags") or {}).get("timecode", "")
+        info.timecode = info.timecode or (data.get("format", {}).get("tags") or {}).get("timecode", "")
         try:
             info.duration = float(data.get("format", {}).get("duration") or 0)
         except Exception:
@@ -588,6 +644,7 @@ class FFmpegTool:
         긴 인코딩에서 화면이 멈춘 것처럼 보이지 않게 하려는 것.
         """
         binary = self.ensure()
+        args = OutputColorTags.fold(args)
         if total_seconds and total_seconds > 0:
             return self._run_with_progress(binary, args, quiet, total_seconds)
         if quiet:

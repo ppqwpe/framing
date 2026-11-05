@@ -321,7 +321,7 @@ class CommandLine:
             self.apply_alias(job_key, options)
         ff = FFmpegTool(allow_download=not args.no_download)
 
-        app = Application(options, ff)
+        app = Application(options, ff, open_result=not args.no_pause)
         try:
             code = app.run(job_key, args.paths)
         except KeyboardInterrupt:

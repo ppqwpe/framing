@@ -87,6 +87,10 @@ class PlateRifeJob(Job):
         spec = PlateSpec.read(_probe_plate(self._ff.ensure_probe(), target), target)
         if spec.frames < 2:
             raise FramingError('플레이트가 두 장은 되어야 사이를 채울 수 있습니다.')
+        if spec.pix_fmt.lower().startswith(('yuva', 'rgba', 'bgra', 'argb', 'abgr', 'gbrap', 'ya')):
+            # 예전에는 4444 알파 소스를 422 HQ 로 되묶으며 알파를 말없이 버렸다
+            raise FramingError('RIFE 플레이트는 알파를 담지 못합니다. 투명도를 유지하려면 '
+                               '리타임에서 복제 또는 겹치기를 쓰세요.')
         Console.info(f'플레이트  {spec.frames}프레임 · {spec.fps:g}fps · '
                      f'{spec.pix_fmt or "규격 안 적힘"} · {spec.codec or "?"}')
         return spec

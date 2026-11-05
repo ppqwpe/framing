@@ -98,11 +98,127 @@ def unique_path(path: Path) -> Path:
         index += 1
 
 
+class FFImage:
+    """
+    EXR · DPX 를 ffmpeg 으로 읽고 쓴다. 이 OpenCV(5, headless)는 둘 다 못 연다.
+
+    배열 모양은 OpenCV 와 같게 맞춘다 (BGR · BGRA). 값은 손대지 않는다:
+      · EXR → float32. 선형 값 그대로, 1.0 넘는 하이라이트도 그대로
+      · DPX → uint16. 10bit 는 16bit 자리로 넓혀 담는다
+    """
+
+    FLOAT = {".exr"}
+
+    @staticmethod
+    def _tool(name: str) -> Optional[str]:
+        from .media import FFmpegTool            # media 가 이 모듈을 읽으므로 여기서
+        return FFmpegTool._search(name)
+
+    @classmethod
+    def pixel_format(cls, path: Path) -> str:
+        probe = cls._tool("ffprobe")
+        if not probe:
+            return ""
+        out = subprocess.run([probe, "-v", "error", "-select_streams", "v:0",
+                              "-show_entries", "stream=pix_fmt", "-of", "csv=p=0", str(path)],
+                             capture_output=True, text=True, errors="replace")
+        return (out.stdout or "").strip().splitlines()[0] if out.stdout.strip() else ""
+
+    @classmethod
+    def read(cls, path: Path, keep_alpha: bool = True) -> Optional["np.ndarray"]:
+        ffmpeg = cls._tool("ffmpeg")
+        pix = cls.pixel_format(path)
+        if not ffmpeg or not pix:
+            return None
+        has_alpha = pix.startswith(("gbrap", "rgba", "bgra", "argb", "abgr", "ya", "yuva"))
+        alpha = keep_alpha and has_alpha
+        floating = path.suffix.lower() in cls.FLOAT
+        # half EXR 을 ffmpeg 안에서 float32 로 바꾸면 1.0 위가 잘린다 (ffmpeg 9 에서 재 봄: 2.5 → 1.0).
+        # 그래서 half 는 half 그대로 받아 numpy 에서 넓힌다.
+        half = floating and pix in ("gbrpf16le", "gbrapf16le")
+        if floating:
+            want = (pix if half else ("gbrapf32le" if has_alpha else "gbrpf32le"))
+        else:
+            want = "rgba64le" if alpha else "rgb48le"
+        out = subprocess.run([ffmpeg, "-v", "error", "-i", str(path), "-frames:v", "1",
+                              "-f", "rawvideo", "-pix_fmt", want, "-"], capture_output=True)
+        size = cls._size(path)
+        if out.returncode or not out.stdout or not size:
+            return None
+        width, height = size
+        if floating:
+            stored = 4 if has_alpha else 3
+            planes = np.frombuffer(out.stdout, np.float16 if half else np.float32)
+            planes = planes.reshape(stored, height, width).astype(np.float32)
+            g, b, r = planes[0], planes[1], planes[2]
+            layers = [b, g, r] + ([planes[3]] if alpha else [])
+            return np.ascontiguousarray(np.stack(layers, axis=-1))
+        channels = 4 if alpha else 3
+        packed = np.frombuffer(out.stdout, np.uint16).reshape(height, width, channels)
+        order = [2, 1, 0, 3] if alpha else [2, 1, 0]
+        return np.ascontiguousarray(packed[..., order])
+
+    @classmethod
+    def _size(cls, path: Path) -> Optional[tuple[int, int]]:
+        probe = cls._tool("ffprobe")
+        out = subprocess.run([probe, "-v", "error", "-select_streams", "v:0", "-show_entries",
+                              "stream=width,height", "-of", "csv=p=0:s=x", str(path)],
+                             capture_output=True, text=True, errors="replace")
+        try:
+            w, h = (out.stdout or "").strip().splitlines()[0].split("x")[:2]
+            return int(w), int(h)
+        except (ValueError, IndexError):
+            return None
+
+    @classmethod
+    def write(cls, path: Path, image: "np.ndarray", dpx_bits: int = 0) -> bool:
+        ffmpeg = cls._tool("ffmpeg")
+        if not ffmpeg or image.ndim != 3 or image.shape[2] not in (3, 4):
+            return False
+        height, width, channels = image.shape
+        alpha = channels == 4
+        if path.suffix.lower() in cls.FLOAT:
+            data = image.astype(np.float32)
+            layers = [data[..., 1], data[..., 0], data[..., 2]] + ([data[..., 3]] if alpha else [])
+            raw, src = np.ascontiguousarray(np.stack(layers)).tobytes(), ("gbrapf32le" if alpha else "gbrpf32le")
+            codec = ["-c:v", "exr", "-compression", "zip16", "-format", "half"]
+        else:
+            if image.dtype == np.uint8:
+                data, src = image, ("rgba" if alpha else "rgb24")
+            else:
+                data = (np.clip(image, 0, 1) * 65535).astype(np.uint16) if image.dtype.kind == "f" else image
+                src = "rgba64le" if alpha else "rgb48le"
+            order = [2, 1, 0, 3] if alpha else [2, 1, 0]
+            raw = np.ascontiguousarray(data[..., order]).tobytes()
+            codec = ["-c:v", "dpx"]
+            if dpx_bits == 10 and not alpha:
+                codec += ["-pix_fmt", "gbrp10le"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        out = subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", src,
+                              "-s", f"{width}x{height}", "-i", "-", *codec, "-frames:v", "1",
+                              "-update", "1", str(path)], input=raw, capture_output=True)
+        return out.returncode == 0 and path.exists()
+
+
 class ImageIO:
     """한글 경로에서도 안전하게 읽고 쓴다 (OpenCV 는 비ASCII 경로에 약하다)."""
 
+    VIA_FFMPEG = {".exr", ".dpx"}           # OpenCV 가 못 여는 합성용 형식
+
     @staticmethod
     def read(path: Path, flags: int = cv2.IMREAD_COLOR) -> Optional["np.ndarray"]:
+        if path.suffix.lower() in ImageIO.VIA_FFMPEG:
+            image = FFImage.read(path, keep_alpha=flags == cv2.IMREAD_UNCHANGED)
+            if image is not None and flags == cv2.IMREAD_COLOR and image.dtype != np.uint8:
+                # 색으로만 읽겠다는 쪽(미리보기 · 판별)은 8bit 를 기대한다
+                # EXR 은 선형이라 그대로 내리면 새까맣다 — 보기용으로 sRGB 곡선을 씌운다
+                if image.dtype.kind == "f":
+                    lin = np.clip(image, 0, 1)
+                    image = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * np.power(lin, 1 / 2.4) - 0.055) * 255.0
+                else:
+                    image = image.astype(np.float32) * (255.0 / 65535.0)
+                image = np.clip(image + 0.5, 0, 255).astype(np.uint8)
+            return image
         try:
             buffer = np.frombuffer(path.read_bytes(), dtype=np.uint8)
         except OSError:
@@ -115,7 +231,9 @@ class ImageIO:
             return None
 
     @staticmethod
-    def write(path: Path, image: "np.ndarray", params: Sequence[int] = ()) -> bool:
+    def write(path: Path, image: "np.ndarray", params: Sequence[int] = (), dpx_bits: int = 0) -> bool:
+        if path.suffix.lower() in ImageIO.VIA_FFMPEG:
+            return FFImage.write(path, image, dpx_bits)
         ok, buffer = cv2.imencode(path.suffix, image, list(params))
         if not ok:
             return False

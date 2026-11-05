@@ -44,6 +44,15 @@ What it does:
 
 Notes and project files made by SHOTKIT (the earlier name of this tool) still open.
 
+### For compositing (Nuke)
+
+- Every video output carries the source's colour tags (primaries, transfer, matrix, range) and start timecode. Each split cut gets its own start timecode.
+- EXR is scene-linear. Video → EXR removes the Rec.709 curve (Nuke Read: `linear`, the same plate as a mov read as `rec709`). EXR → video, PNG or DPX puts the curve back. Values above 1.0 are kept.
+- DPX keeps the video code values and the source bit depth (10-bit stays 10-bit).
+- A sequence in gives a sequence back in the same format, name, start frame and padding: `plate.1001.exr` reversed is `plate_reversed.1001.exr`.
+- Alpha is kept through retime, reverse and the Nuke ProRes 4444 master. RIFE plates refuse alpha sources instead of dropping the alpha.
+- Mov audio stays 24-bit unless the source is 16-bit. The delivery preset conforms 23.976 to 24 frame for frame instead of dropping or repeating frames.
+
 ## Working on it
 
 This repo does not include the Windows runtime (`app/python`, `app/lib`, `app/ffmpeg`, `app/rife`, about 620 MB); it is too big for Git.

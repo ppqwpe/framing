@@ -10,7 +10,7 @@ from .options import JobResult
 from .env import np
 from .util import Console, FrameNumber, Progress, hms, human
 from .media import VideoSource
-from .frames import ColorProfile, LevelExpander, LevelInspector, PixelPlan, PreciseGrab, build_writers
+from .frames import ColorProfile, LevelExpander, LevelInspector, PixelPlan, PreciseGrab, TransferCurve, build_writers
 from .job import FramePick, Job, PickSpec
 from .sequence import OutputFolder
 
@@ -80,9 +80,10 @@ class ExtractJob(Job):
                               f"{hms(info.duration)}, 약 {info.frames}프레임 → {fmt.upper()}")
             self._announce_color(profile)
 
+        encoder, curve, note = self._sequence_plan(fmt, profile)
         code = self._ff.run(["-y", "-i", str(target),
-                             *ColorProfile.join(profile.read_filter()),
-                             *self.SEQUENCE_ENCODERS[fmt], '-fps_mode', 'passthrough',
+                             *ColorProfile.join(profile.read_filter(), curve),
+                             *encoder, '-fps_mode', 'passthrough',
                              '-start_number', '1', "-an", str(pattern)],
                             total_seconds=info.duration if info else 0.0)
         made = sorted(p for p in folder.iterdir() if p.suffix.lower() == f".{fmt}")
@@ -90,7 +91,7 @@ class ExtractJob(Job):
         if code != 0 or not made:
             raise FramingError(f"전체 프레임 저장 미완료 (ffmpeg {code}). 폴더: {folder}")
         bundle.write(status='complete', frames=len(made), fps=info.fps if info else 0,
-                     format=fmt, fileNumberBase=1, sourceFrameBase=0,
+                     format=fmt, fileNumberBase=1, sourceFrameBase=0, colorspace=note,
                      timing='One file per decoded frame. VFR frame intervals are not represented by sequence FPS.')
         result.outputs = made
         result.output_dir = folder
@@ -98,6 +99,37 @@ class ExtractJob(Job):
         result.ok = bool(made)
         result.message += f"  ·  {len(made)}장, {human(sum(p.stat().st_size for p in made))}"
         return result
+
+    def _sequence_plan(self, fmt: str, profile: ColorProfile) -> tuple[list[str], str, str]:
+        """
+        (인코더 인자, 곡선 필터, 누크에서 어떻게 읽을지 한 줄)
+
+        EXR 은 선형이어야 한다. 누크는 EXR 을 linear 로 읽기 때문에, 영상 곡선이 씌워진 값을
+        그대로 담으면 같은 플레이트의 mov(rec709 로 읽힘)와 EXR 이 서로 다른 그림이 된다.
+        그래서 Rec.709(또는 sRGB) 곡선을 벗겨 담는다. HDR(PQ · HLG)은 벗길 기준이 없어 코드값 그대로.
+        알파가 있으면 EXR · PNG · DPX 모두 알파 채널을 같이 담는다.
+        """
+        alpha = profile.has_alpha
+        if fmt == "exr":
+            encoder = ["-c:v", "exr", "-compression", "zip16", "-format", "half",
+                       "-pix_fmt", "gbrapf32le" if alpha else "gbrpf32le"]
+            kind = TransferCurve.linearize_from(profile.transfer)
+            if kind is None:
+                Console.warn(f"전달 곡선 {profile.transfer} (HDR) 은 선형으로 바꾸지 않고 코드값 그대로 담습니다 "
+                             "— 누크 Read 의 colorspace 를 원본 곡선으로 지정하세요")
+                return encoder, "", f"code values ({profile.transfer}), not linear"
+            source = "sRGB" if kind == "from_srgb" else "Rec.709"
+            Console.info(f"EXR  {source} 곡선을 벗겨 선형으로 담습니다 — 누크 Read: linear "
+                         f"(같은 원본 mov 는 {'sRGB' if kind == 'from_srgb' else 'rec709'})")
+            return encoder, TransferCurve.filter(kind, alpha), f"scene-linear (from {source}), primaries {profile.primaries or 'bt709'}"
+        encoder = list(self.SEQUENCE_ENCODERS[fmt])
+        if fmt == "dpx":
+            deep = profile.bits > 8
+            encoder += ["-pix_fmt", ("rgba64le" if alpha else "gbrp10le") if deep or alpha
+                        else "rgb24"]
+        elif fmt == "png" and alpha:
+            encoder += ["-pix_fmt", "rgba64be" if profile.bits > 8 else "rgba"]
+        return encoder, "", "display-referred video code values (Nuke Read: rec709)"
 
     # --- 몇 장 --------------------------------------------------------------
 

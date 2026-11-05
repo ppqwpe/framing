@@ -12,7 +12,7 @@ from .options import JobResult
 from .env import IMAGE_EXTENSIONS
 from .util import Console, hms, human
 from .media import ProbeInfo
-from .frames import ColorProfile, PixelPlan
+from .frames import ColorProfile, PixelPlan, TransferCurve
 from .job import Job
 from .sequence import GifJob, SequenceInput, SequenceMovieJob
 from .jobs_extract import ExtractJob
@@ -120,6 +120,11 @@ class TranscodeJob(Job):
             return args, why
         if args[:1] == ["-c"]:
             return args, why + "   (컨테이너만 바꿀 땐 해상도를 못 줄입니다)"
+        if "-vf" in args:                   # 곡선 필터가 이미 있으면 이어 붙인다 (-vf 가 둘이면 뒤엣것만 산다)
+            at = args.index("-vf")
+            merged = list(args)
+            merged[at + 1] = f"{args[at + 1]},scale=-2:{height}"
+            return merged, why + f", {height}p 로 축소"
         return ["-vf", f"scale=-2:{height}"] + args, why + f", {height}p 로 축소"
 
     @staticmethod
@@ -136,6 +141,18 @@ class ConvertTarget(ABC):
     창만 갈라져 있어서, 쓰는 사람이 "mov 로 갈까 압축할까"를 고르려면
     창을 옮겨 다녀야 했다. 목적지는 선택지이지 별개의 작업이 아니다.
     """
+
+    @staticmethod
+    def pcm(info: Optional[ProbeInfo]) -> list[str]:
+        """
+        mov 에 담을 소리. 원본이 16bit pcm 이면 16bit, 그 밖(24bit 녹음 · aac 등)은 24bit.
+        예전에는 늘 16bit 로 내려서 24bit 현장음이 깎였다.
+        """
+        if not (info and info.acodec):
+            return ["-an"]
+        if info.acodec == "pcm_s16le" or (info.acodec.startswith("pcm") and 0 < info.audio_bits <= 16):
+            return ["-c:a", "pcm_s16le"]
+        return ["-c:a", "pcm_s24le"]
 
     KEY = ""
     TITLE = ""
@@ -215,9 +232,8 @@ class NukeTarget(ConvertTarget):
     SUFFIX = "_nuke"
 
     def plan(self, job, target, info, profile):
-        acodec = info.acodec if info else ""
         args, why = PixelPlan.for_prores(profile)
-        args += ["-c:a", "pcm_s16le"] if acodec else ["-an"]
+        args += self.pcm(info)
         return args, self.EXT, self.SUFFIX, f"{why} 로 다시 인코딩 — 누크가 바로 읽습니다"
 
 
@@ -242,43 +258,53 @@ class DeliveryTarget(ConvertTarget):
     WIDTH, HEIGHT, FPS = 1920, 1080, 24.0
     PROFILE = "5"                 # prores_ks: 0 proxy · 1 lt · 2 std · 3 hq · 4 4444 · 5 4444xq
 
-    def _frame(self, info: Optional[ProbeInfo]) -> tuple[list[str], str]:
+    def _frame(self, info: Optional[ProbeInfo]) -> tuple[str, str]:
         """규약 해상도로 맞춘다. 비율은 절대 안 늘린다 — 모자라면 레터박스."""
         if info and info.width == self.WIDTH and info.height == self.HEIGHT:
-            return [], ""
+            return "", ""
         if info and info.width and info.height:
             Console.warn(f"{info.width}x{info.height} 를 {self.WIDTH}x{self.HEIGHT} 로 맞춥니다 — "
                          f"비율이 다르면 위아래(또는 좌우)에 검은 띠가 생깁니다")
-        return (["-vf", f"scale={self.WIDTH}:{self.HEIGHT}:force_original_aspect_ratio=decrease"
-                        f":flags=lanczos,pad={self.WIDTH}:{self.HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
-                        f"setsar=1"],
+        return (f"scale={self.WIDTH}:{self.HEIGHT}:force_original_aspect_ratio=decrease"
+                f":flags=lanczos,pad={self.WIDTH}:{self.HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
                 f"{self.WIDTH}x{self.HEIGHT} 로 맞춤")
 
-    def _rate(self, info: Optional[ProbeInfo]) -> tuple[list[str], str]:
-        """
-        24fps 로 못 박는다.
+    CONFORM_WITHIN = 0.002        # 23.976 ↔ 24 처럼 0.1% 차이는 프레임 1:1 로 다시 읽는다
 
-        이미 24 면 아무 일도 안 일어납니다. 아니면 ffmpeg 가 프레임을 버리거나
-        겹쳐 채우는데, 그건 리타임이지 변환이 아닙니다. 그래서 크게 말합니다 —
-        길이를 제대로 바꿀 거면 리타임으로 가야 합니다.
+    def _rate(self, info: Optional[ProbeInfo]) -> tuple[str, list[str], str]:
+        """
+        24fps 로 못 박는다. (영상 필터, 소리 필터 인자, 설명)
+
+        23.976 은 컨폼한다 — 프레임을 하나도 버리거나 겹치지 않고 24 로 다시 읽는다
+        (0.1% 빨라지고 소리도 같이 맞춘다). 예전에는 -r 24 로 41초마다 한 장씩 겹쳐 채워서,
+        납품본과 플레이트의 프레임 번호가 어긋났다.
+        그 밖의 fps(25 · 30 …)는 프레임을 버리거나 겹쳐야 해서 크게 말한다.
         """
         fps = info.fps if info and info.fps else 0.0
         if fps and abs(fps - self.FPS) < 0.01:
-            return ["-r", "24"], ""
+            return "", [], ""
+        if fps and abs(fps - self.FPS) / self.FPS < self.CONFORM_WITHIN:
+            Console.info(f"원본 {fps:.3f}fps 를 프레임 1:1 로 24fps 컨폼합니다 (프레임 수 그대로)")
+            tempo = self.FPS / fps
+            return (f"setpts=N/({self.FPS:g}*TB)", ["-af", f"atempo={tempo:.6f}"],
+                    f"{fps:.3f} → 24fps 컨폼 (프레임 1:1)")
         if fps:
             Console.warn(f"원본이 {fps:.3f}fps 입니다. 24fps 로 내보내면 프레임을 버리거나 "
                          f"겹쳐 채웁니다 — 길이를 제대로 맞추려면 리타임을 먼저 쓰세요")
-        return ["-r", "24"], "24fps 로 고정"
+        return "", [], "24fps 로 고정"
 
     def plan(self, job, target, info, profile):
         alpha = bool(profile.has_alpha)
         pix = ["-pix_fmt", "yuva444p10le", "-alpha_bits", "16"] if alpha else \
               ["-pix_fmt", "yuv444p10le"]
         frame, framed = self._frame(info)
-        rate, rated = self._rate(info)
-        sound = ["-c:a", "pcm_s16le"] if (info and info.acodec) else ["-an"]
+        conform, tempo, rated = self._rate(info)
+        sound = self.pcm(info)
+        if sound != ["-an"]:
+            sound += tempo
+        chain = ",".join(f for f in (conform, frame) if f)
         args = ["-c:v", "prores_ks", "-profile:v", self.PROFILE, "-vendor", "apl0",
-                *pix, *frame, *rate, *sound]
+                *pix, *(["-vf", chain] if chain else []), "-r", "24", *sound]
         said = " · ".join(x for x in ("ProRes 4444 XQ", framed, rated,
                                       "알파 유지" if alpha else "") if x)
         return args, self.EXT, self.SUFFIX, said
@@ -336,8 +362,26 @@ class ImageTarget(ConvertTarget):
         extra, ext = self.ENCODERS[want]
         pixels = (["-pix_fmt", "gbrapf32le" if profile.has_alpha else "gbrpf32le"]
                   if want == 'exr' else ["-pix_fmt", "yuvj444p"] if want == 'jpg' else [])
-        args = ["-frames:v", "1", *extra, *pixels]
+        curve, said = self.curve(target.suffix.lower(), want)
+        if said:
+            Console.info(f"곡선  {said}")
+        chain = ColorProfile.join(TransferCurve.filter(curve, profile.has_alpha) if curve else "")
+        args = ["-frames:v", "1", *chain, *extra, *pixels]
         return args, ext, self.SUFFIX, f"{target.suffix.lstrip('.').upper()} → {want.upper()}"
+
+    @staticmethod
+    def curve(source: str, want: str) -> tuple[str, str]:
+        """
+        EXR 은 선형, PNG · JPG · WEBP 는 sRGB, DPX 는 영상 코드값(rec709)이다.
+        형식만 바꾸고 곡선을 안 바꾸면 EXR → PNG 가 새까맣게, PNG → EXR 이 허옇게 나온다.
+        """
+        if source == ".exr" and want != "exr":
+            return (("to_rec709", "선형 → Rec.709 (DPX)") if want == "dpx"
+                    else ("to_srgb", "선형 → sRGB"))
+        if source != ".exr" and want == "exr":
+            return (("from_rec709", "Rec.709 → 선형") if source == ".dpx"
+                    else ("from_srgb", "sRGB → 선형"))
+        return "", ""
 
 
 class GifTarget(ConvertTarget):

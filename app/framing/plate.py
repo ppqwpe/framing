@@ -17,9 +17,23 @@ from .errors import FramingError
 from .env import cv2
 from .util import Console, FrameRate, ImageIO
 from .retime import RetimeTimeline
+from .media import FFmpegTool, OutputColorTags
 
 
 """A durable retime package with complete frames and per-frame provenance."""
+
+
+def rebind(ffmpeg: str, args: Sequence[str], source: str) -> subprocess.CompletedProcess:
+    """
+    플레이트를 되묶는 ffmpeg 한 번. 색 표기는 프레임에도 찍고(OutputColorTags),
+    원본의 시작 타임코드를 그대로 단다 — 늘려도 줄여도 시작점은 원본과 같다.
+    """
+    info = FFmpegTool().probe(Path(source)) if source and Path(source).exists() else None
+    stamped = OutputColorTags.fold(list(args))
+    if info and info.timecode:
+        stamped = stamped[:-1] + info.timecode_args() + stamped[-1:]
+    return subprocess.run([ffmpeg, *stamped], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
 
 
 class RetimeBundle:
@@ -526,12 +540,11 @@ class PlateAssemble:
             note: Optional["StretchNote"] = None) -> Path:
         """플레이트와 같은 코덱·계조·색 표기로 되묶는다. 쪽지는 파일 안에 심는다."""
         frames = sorted(Path(frames_dir).glob("*.png"))
-        done = subprocess.run(
-            [self._ffmpeg, "-v", "error", "-y", "-framerate", FrameRate.from_value(self.spec.fps).text,
+        done = rebind(self._ffmpeg,
+            ["-v", "error", "-y", "-framerate", FrameRate.from_value(self.spec.fps).text,
              "-start_number", "0", "-i", str(Path(frames_dir) / "%06d.png"),
              *encoder_for(self.spec), *self.spec.tag_args(),
-             *(note.embed_args() if note else []), "-an", str(destination)],
-            capture_output=True, text=True, encoding="utf-8", errors="replace")
+             *(note.embed_args() if note else []), "-an", str(destination)], self.spec.source)
         if done.returncode != 0 or not Path(destination).exists():
             raise FramingError(f"되묶기에 실패했습니다: {done.stderr.strip()[:200]}")
         if note:
@@ -903,12 +916,11 @@ class HoldBuilder:
             self._abort()
             shutil.copy2(plate[source_index], picked / f"{order:06d}.png")
         note = StretchNote(self._spec, len(origins), origins, self._plan.added())
-        made = subprocess.run(
-            [self._ffmpeg, "-v", "error", "-y", "-framerate", FrameRate.from_value(self._spec.fps).text,
+        made = rebind(self._ffmpeg,
+            ["-v", "error", "-y", "-framerate", FrameRate.from_value(self._spec.fps).text,
              "-start_number", "0", "-i", str(picked / "%06d.png"),
              *encoder_for(self._spec), *self._spec.tag_args(),
-             *note.embed_args(), "-an", str(destination)],
-            capture_output=True, text=True, encoding="utf-8", errors="replace")
+             *note.embed_args(), "-an", str(destination)], self._spec.source)
         if made.returncode != 0 or not Path(destination).exists():
             raise FramingError(f"되묶기에 실패했습니다: {made.stderr.strip()[:200]}")
         note.write(Path(destination))
@@ -966,11 +978,10 @@ class PlateRevert:
             self._abort()
             shutil.copy2(frames[out_index], picked / f"{order:06d}.png")
         spec = self.note.spec
-        made = subprocess.run(
-            [self._ffmpeg, "-v", "error", "-y", "-framerate", FrameRate.from_value(spec.fps).text,
+        made = rebind(self._ffmpeg,
+            ["-v", "error", "-y", "-framerate", FrameRate.from_value(spec.fps).text,
              "-start_number", "0", "-i", str(picked / "%06d.png"),
-             *encoder_for(spec), *spec.tag_args(), "-an", str(destination)],
-            capture_output=True, text=True, encoding="utf-8", errors="replace")
+             *encoder_for(spec), *spec.tag_args(), "-an", str(destination)], spec.source)
         if made.returncode != 0 or not Path(destination).exists():
             raise FramingError(f"되묶기에 실패했습니다: {made.stderr.strip()[:200]}")
         return {"from": self.note.out_frames, "to": len(self.note.kept),

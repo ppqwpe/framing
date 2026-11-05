@@ -18,6 +18,33 @@ from .sequence import OutputFolder, bounded_number
 """Scene analysis, frame boundary planning, and one-pass clip export."""
 
 
+class StartTimecode:
+    """
+    원본 시작 타임코드에 프레임 수를 더한다 (non-drop).
+
+    컷마다 원본에서 몇 번째 프레임에서 시작했는지가 타임코드로 남아야 컨폼할 때 제자리를 찾는다.
+    예전에는 모든 컷이 원본 시작 타임코드(10:20:30:12)를 그대로 달고 나왔다.
+    드롭프레임(;)은 계산 규칙이 달라 건드리지 않는다.
+    """
+
+    def __init__(self, text: str, fps: float) -> None:
+        self.text, self.base = text or "", max(1, int(round(fps or 24)))
+        parts = self.text.split(":")
+        self.valid = len(parts) == 4 and ";" not in self.text and all(p.isdigit() for p in parts)
+        if self.valid:
+            h, m, s, f = map(int, parts)
+            self.frames = ((h * 60 + m) * 60 + s) * self.base + f
+
+    def plus(self, frames: int) -> str:
+        if not self.valid:
+            return ""
+        total = self.frames + frames
+        f, total = total % self.base, total // self.base
+        s, total = total % 60, total // 60
+        m, h = total % 60, (total // 60) % 24
+        return f"{h:02d}:{m:02d}:{s:02d}:{f:02d}"
+
+
 class CutTimeline:
     def __init__(self, times, scores, duration):
         if not times or any(not math.isfinite(t) for t in times):
@@ -117,6 +144,22 @@ class CutTimeline:
 
 
 class CutJob(Job):
+    def _stamp_timecodes(self, cuts):
+        """세그먼트는 원본 시작 타임코드를 그대로 복사한다. 컷마다 제 시작 타임코드로 다시 단다 (재인코딩 없음)."""
+        for cut in cuts:
+            stamp = cut.get('timecode')
+            if not stamp:
+                continue
+            movie = Path(cut['file'])
+            temp = movie.with_name(movie.stem + '_tc' + movie.suffix)
+            code = self._ff.run(['-y', '-i', str(movie), '-map', '0:v', '-map', '0:a?', '-c', 'copy',
+                                 '-timecode', stamp, '-movflags', '+faststart', str(temp)], quiet=True)
+            if code == 0 and temp.is_file() and temp.stat().st_size > 0:
+                temp.replace(movie)
+            else:
+                temp.unlink(missing_ok=True)
+                Console.warn(f'{movie.name} 의 타임코드를 {stamp} 로 바꾸지 못했습니다')
+
     KEY = 'cuts'
     TITLE = '컷 분할'
     HINT = '장면 전환 · 일정 간격 · 지정 시간으로 나누기'
@@ -134,6 +177,10 @@ class CutJob(Job):
         boundaries = timeline.boundaries(self._opt)
         bundle = OutputFolder(target, self._opt.out_dir, '_cuts', 'cuts.json')
         cuts = timeline.entries(boundaries, bundle.path)
+        start = StartTimecode(info.timecode, info.fps)
+        if start.valid:
+            for cut, first in zip(cuts, boundaries):
+                cut['timecode'] = start.plus(first)
         bundle.write(mode=self._opt.cut_mode, threshold=self._opt.cut_threshold,
                      minimumSeconds=self._opt.cut_min_seconds, intervalSeconds=self._opt.cut_interval,
                      requestedTimes=self._opt.cut_times, frameNumberBase=FrameNumber.BASE,
@@ -157,6 +204,7 @@ class CutJob(Job):
             movies = [Path(cut['file']) for cut in cuts]
             if code or len(list(bundle.path.glob('cut_*.mp4'))) != len(movies) or not all(p.is_file() and p.stat().st_size > 0 for p in movies):
                 raise FramingError(f'컷 저장이 완료되지 않았습니다 (ffmpeg {code}). 미완료 폴더: {bundle.path}')
+            self._stamp_timecodes(cuts)
             listing = bundle.path / 'cuts.csv'
             with listing.open('w', encoding='utf-8-sig', newline='') as stream:
                 writer = csv.DictWriter(stream, fieldnames=list(cuts[0]))

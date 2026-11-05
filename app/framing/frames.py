@@ -368,6 +368,70 @@ class ColorProfile:
         return f"{depth} · {space} · {said}"
 
 
+class TransferCurve:
+    """
+    선형(EXR) ↔ 화면용 곡선을 오가는 ffmpeg 필터.
+
+    EXR 은 선형 값으로 읽힌다 (누크 Read 기본값 linear). 영상은 Rec.709 곡선이 씌워진 값이다
+    (누크 Read 의 rec709). 둘을 오갈 때 곡선을 안 바꾸면 EXR 이 허옇게 뜨거나 영상이 어둡게 나온다.
+
+    ffmpeg 9 는 EXR 의 apply_trc 를 없앴고, zscale 의 709 는 디스플레이 감마 2.4(BT.1886)라
+    누크의 rec709(카메라 OETF, 1.099·L^0.45 − 0.099)와 값이 다르다 — 0.18 이 0.491 vs 0.411.
+    그래서 정확한 곡선을 1D LUT(4096칸)로 만들어 건다. 왕복 오차 0.0001 미만.
+    """
+
+    SIZE = 4096
+    _folder: Optional[Path] = None
+
+    @staticmethod
+    def _rec709(x):
+        return np.where(x < 0.018, 4.5 * x, 1.099 * np.power(x, 0.45) - 0.099)
+
+    @staticmethod
+    def _rec709_inverse(x):
+        return np.where(x < 0.081, x / 4.5, np.power((x + 0.099) / 1.099, 1 / 0.45))
+
+    @staticmethod
+    def _srgb(x):
+        return np.where(x <= 0.0031308, 12.92 * x, 1.055 * np.power(x, 1 / 2.4) - 0.055)
+
+    @staticmethod
+    def _srgb_inverse(x):
+        return np.where(x <= 0.04045, x / 12.92, np.power((x + 0.055) / 1.055, 2.4))
+
+    CURVES = {"to_rec709": "_rec709", "from_rec709": "_rec709_inverse",
+              "to_srgb": "_srgb", "from_srgb": "_srgb_inverse"}
+
+    @classmethod
+    def _cube(cls, kind: str) -> Path:
+        if cls._folder is None or not cls._folder.exists():
+            cls._folder = Path(tempfile.mkdtemp(prefix="framing_curves_"))
+        path = cls._folder / f"{kind}.cube"
+        if not path.exists():
+            x = np.linspace(0.0, 1.0, cls.SIZE)
+            y = getattr(cls, cls.CURVES[kind])(x)
+            rows = "".join(f"{v:.8f} {v:.8f} {v:.8f}\n" for v in y)
+            path.write_text(f"LUT_1D_SIZE {cls.SIZE}\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 1 1 1\n{rows}",
+                            encoding="ascii")
+        return path
+
+    @classmethod
+    def filter(cls, kind: str, alpha: bool = False) -> str:
+        """kind: to_rec709 · from_rec709 · to_srgb · from_srgb. float 로 올려서 건다."""
+        where = cls._cube(kind).as_posix().replace(":", r"\:").replace("'", r"\'")
+        return f"format={'gbrapf32le' if alpha else 'gbrpf32le'},lut1d=file='{where}':interp=cubic"
+
+    @staticmethod
+    def linearize_from(transfer: str) -> Optional[str]:
+        """영상 → EXR 일 때 벗길 곡선. HDR(PQ · HLG)은 None — 코드값을 그대로 둔다."""
+        transfer = (transfer or "").lower()
+        if transfer in ("iec61966-2-1", "iec61966_2_1"):
+            return "from_srgb"
+        if transfer in ("", "bt709", "smpte170m", "bt470bg", "bt2020-10", "bt2020-12", "bt601", "unknown"):
+            return "from_rec709"
+        return None
+
+
 class PixelPlan:
     """
     소스가 가진 계조·채도·알파를 깎지 않는 픽셀 형식을 고른다.
