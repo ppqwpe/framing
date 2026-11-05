@@ -439,13 +439,13 @@ class FpsTarget(ConvertTarget):
         if mode not in self.MODES:
             raise FramingError(f"알 수 없는 FPS 변환 방법입니다: {mode} ({' · '.join(self.MODES)})")
         text, value = self.rate(job._opt.target_fps)
-        source = info.fps if info and info.fps else 0.0
+        source = self.source_rate(info)
         if not source:
             raise FramingError("원본 FPS 를 읽지 못했습니다.")
         if abs(source - value) < 1e-3:
             Console.info(f"원본이 이미 {value:.3f}fps 입니다 — 코덱만 원본 규격으로 다시 담습니다")
 
-        video_filter, tempo, said = self._motion(mode, text, value, source, info)
+        video_filter, tempo, said = self._motion(mode, text, value, source, info, profile)
         video, ext, coded = self._codec(target, profile)
         sound = self._sound(info, ext, tempo)
         # 장 수를 못박는다. 컨폼은 원본과 같게, 길이 유지는 원본 길이 × 목표 FPS 로.
@@ -454,17 +454,79 @@ class FpsTarget(ConvertTarget):
         expected = frames if mode == "conform" else round(frames * value / source)
         # 못박기는 모션 보간에만 — 나머지는 이미 정확하고, 못박으면 소리 꼬리가 몇 ms 잘린다
         count = ["-frames:v", str(expected)] if expected > 0 and mode == "motion" else []
+        if mode == "conform" and expected > 0:
+            # 컨폼은 장 수가 곧 결과다. VFR 소스의 긴 마지막 프레임을 -r 이 한 장 더 늘리던 것을
+            # 못박아 막는다 (-r 과 passthrough 는 ffmpeg 이 같이 받지 않는다). 소리 꼬리는 1프레임 안쪽으로 맞춰진다.
+            count = ["-frames:v", str(expected)]
         args = [*(["-vf", video_filter] if video_filter else []), "-r", text, *count,
-                *video, *sound, *(info.timecode_args() if info else [])]
+                *video, *sound, *self._timecode(info, source, value)]
         if ext == ".mp4":
             args += ["-movflags", "+faststart"]
         return args, ext, f"_{self._label(value)}fps", f"{source:.3f} → {value:.3f}fps · {said} · {coded}"
 
     @staticmethod
+    def source_rate(info) -> float:
+        """
+        원본의 실제 FPS. 표기(r_frame_rate)와 실제 평균(장 수 ÷ 길이)이 1% 넘게 다르면 가변 프레임레이트(VFR)다.
+
+        휴대폰 영상은 30 이라고 적혀 있어도 평균 26.7 일 수 있다. 표기로 소리 박자를 계산하면
+        컨폼 결과의 소리가 1.25배로 늘어나 영상과 어긋났다 (재 봄). VFR 이면 실제 평균을 쓴다.
+        """
+        if not info or not info.fps:
+            return 0.0
+        seconds = info.video_duration or info.duration
+        if info.reported_frames and seconds > 0:
+            actual = info.reported_frames / seconds
+            if abs(actual - info.fps) / info.fps > 0.01:
+                Console.warn(f"가변 프레임레이트 영상입니다 — 표기 {info.fps:.3f}fps, 실제 평균 {actual:.3f}fps. "
+                             "평균 기준으로 계산합니다")
+                return actual
+        return info.fps
+
+    @staticmethod
     def _label(value: float) -> str:
         return f"{value:.3f}".rstrip("0").rstrip(".").replace(".", "p")
 
-    def _motion(self, mode, text, value, source, info):
+    # 알파를 루마 자리에 옮겨 따로 섞고 다시 붙인다. framerate · minterpolate 는 알파 형식을 안 받아
+    # 알파를 버리고(전부 불투명), alphamerge 는 8bit 로만 합친다. 평면 이동은 값이 비트 단위로 그대로다.
+    ALPHA_SPLIT = ("format=yuva444p12le,split[c][a];"
+                   "[a]shuffleplanes=map0=3,format=yuv444p12le,{f}[aa];"
+                   "[c]format=yuv444p12le,{f}[cc];"
+                   "[cc][aa]mergeplanes=map0s=0:map0p=0:map1s=0:map1p=1:map2s=0:map2p=2:"
+                   "map3s=1:map3p=0:format=yuva444p12le")
+
+    @classmethod
+    def _keep_alpha(cls, chain: str, profile) -> str:
+        return cls.ALPHA_SPLIT.format(f=chain) if profile.has_alpha else chain
+
+    @staticmethod
+    def _timecode(info, source: float, value: float) -> list[str]:
+        """
+        시작 타임코드를 새 FPS 칸에 맞게 옮긴다. 시:분:초는 그대로, 프레임 칸만 비율로.
+
+        그대로 넘기면 25fps 의 10:00:00:24 가 24fps 에서는 없는 칸이라 ffmpeg 이 10:00:01:00 으로
+        넘겨 버렸다 (재 봄). 드롭프레임(;)은 같은 계열(29.97 · 59.94)로 갈 때만 그대로 둔다.
+        """
+        stamp = info.timecode if info else ""
+        if not stamp:
+            return []
+        if ";" in stamp:
+            if abs(value - 30000 / 1001) < 0.01 or abs(value - 60000 / 1001) < 0.01:
+                return ["-timecode", stamp]
+            Console.warn(f"드롭프레임 타임코드 {stamp} 는 {value:.3f}fps 로 옮기지 않습니다 — 타임코드 없이 저장합니다")
+            return []
+        parts = stamp.split(":")
+        if len(parts) != 4 or not all(x.isdigit() for x in parts):
+            return []
+        h, m, s, f = map(int, parts)
+        old, new = max(1, round(source)), max(1, round(value))
+        frame = min(new - 1, round(f * new / old))
+        moved = f"{h:02d}:{m:02d}:{s:02d}:{frame:02d}"
+        if moved != stamp:
+            Console.info(f"타임코드  {stamp} ({old}칸) → {moved} ({new}칸)")
+        return ["-timecode", moved]
+
+    def _motion(self, mode, text, value, source, info, profile):
         frames = info.frames if info else 0
         if mode == "conform":
             seconds = frames / value if frames else 0
@@ -475,11 +537,15 @@ class FpsTarget(ConvertTarget):
         if mode == "dup":
             return f"fps={text}", "", "복제 (길이 유지)"
         if mode == "blend":
-            return f"framerate=fps={text}", "", "겹치기 (길이 유지)"
+            return self._keep_alpha(f"framerate=fps={text}", profile), "", "겹치기 (길이 유지)"
         Console.warn("모션 보간은 빠른 움직임 · 가림에서 찢어질 수 있습니다 — 결과를 꼭 보세요")
+        if profile.deep:
+            # minterpolate 는 8bit 로만 계산한다 (재 봄: 10bit 램프 오차 2.5 단계). 숨기지 않고 말한다.
+            Console.warn(f"모션 보간은 8bit 로 계산됩니다 — {profile.bits}bit 계조가 깎입니다. "
+                         "계조를 지키려면 컨폼 · 복제 · 겹치기를 쓰세요")
         # 끝 프레임을 몇 장 복제해 두어야 마지막 구간까지 그린다 (넘친 몫은 -frames:v 가 자른다)
-        return (f"tpad=stop_mode=clone:stop=4,minterpolate=fps={text}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
-                "", "모션 보간 (길이 유지)")
+        chain = f"tpad=stop_mode=clone:stop=4,minterpolate=fps={text}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1"
+        return self._keep_alpha(chain, profile), "", "모션 보간 (길이 유지)"
 
     @staticmethod
     def _codec(target, profile):

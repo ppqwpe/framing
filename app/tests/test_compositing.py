@@ -116,6 +116,59 @@ class FpsTargetTests(unittest.TestCase):
         self.assertEqual(FpsTarget.tempo(5.0), "atempo=2.0,atempo=2.0,atempo=1.250000")
 
 
+class FpsReviewTests(unittest.TestCase):
+    """합성 작업자 검토에서 나온 것: 타임코드 칸 · VFR 평균 · 알파 분리 그래프."""
+
+    def test_timecode_frame_field_is_moved_not_overflowed(self):
+        from framing.jobs_convert import FpsTarget
+        info = ProbeInfo(timecode="10:00:00:24")
+        self.assertEqual(FpsTarget._timecode(info, 25, 24), ["-timecode", "10:00:00:23"])
+        self.assertEqual(FpsTarget._timecode(ProbeInfo(timecode="01:00:00:23"), 24, 25), ["-timecode", "01:00:00:24"])
+        self.assertEqual(FpsTarget._timecode(ProbeInfo(timecode="01:00:00;00"), 29.97, 24), [])
+        self.assertEqual(FpsTarget._timecode(ProbeInfo(), 25, 24), [])
+
+    def test_vfr_uses_actual_average(self):
+        from framing.jobs_convert import FpsTarget
+        vfr = ProbeInfo(fps=30, reported_frames=111, video_duration=4.6)
+        self.assertAlmostEqual(FpsTarget.source_rate(vfr), 111 / 4.6, places=3)
+        cfr = ProbeInfo(fps=25, reported_frames=100, video_duration=4.0)
+        self.assertEqual(FpsTarget.source_rate(cfr), 25)
+
+    def test_alpha_is_carried_in_its_own_plane(self):
+        from framing.jobs_convert import FpsTarget
+        from framing.frames import ColorProfile
+        chain = FpsTarget._keep_alpha("framerate=fps=24", ColorProfile(pix_fmt="yuva444p12le"))
+        self.assertIn("shuffleplanes=map0=3", chain)
+        self.assertIn("mergeplanes=", chain)
+        self.assertNotIn("alphamerge", chain)            # alphamerge 는 8bit 로 합친다
+        self.assertEqual(FpsTarget._keep_alpha("fps=24", ColorProfile(pix_fmt="yuv422p10le")), "fps=24")
+
+
+@unittest.skipUnless(HAVE_FF, "ffmpeg 이 없습니다")
+class FpsAlphaRunTests(unittest.TestCase):
+    """4444 알파 소스를 겹치기로 25 → 24: 알파 값이 그대로 남아야 한다 (예전엔 전부 불투명)."""
+
+    def test_blend_keeps_alpha_values(self):
+        tmp = Path(tempfile.mkdtemp(prefix="framing_fps_alpha_"))
+        try:
+            src = tmp / "a.mov"
+            subprocess.run([FF.find("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i",
+                            "color=black:s=160x90:r=25:d=1,format=yuva444p10le,geq=lum=512:cb=512:cr=512:a='200+X*4'",
+                            "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le",
+                            "-alpha_bits", "16", str(src)], check=True)
+            run = subprocess.run([sys.executable, str(APP / "main.py"), "convert", str(src), "--to", "fps",
+                                  "--target-fps", "24", "--fps-mode", "blend", "--out", str(tmp / "o"), "--no-pause"],
+                                 stdin=subprocess.DEVNULL, capture_output=True)
+            self.assertEqual(run.returncode, 0, run.stdout[-400:])
+            made = next((tmp / "o").glob("*.mov"))
+            raw = subprocess.run([FF.find("ffmpeg"), "-v", "error", "-i", str(made), "-frames:v", "1", "-f", "rawvideo",
+                                  "-pix_fmt", "yuva444p16le", "-"], capture_output=True).stdout
+            alpha = np.frombuffer(raw, np.uint16).reshape(4, 90, 160)[3, 45, ::40] // 64
+            self.assertEqual([int(v) for v in alpha], [200, 360, 520, 680])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 @unittest.skipUnless(HAVE_FF, "ffmpeg 이 없습니다")
 class FpsConvertRunTests(unittest.TestCase):
     """25fps ProRes 를 24 로: 컨폼은 장 수 그대로, 복제는 길이 그대로."""
