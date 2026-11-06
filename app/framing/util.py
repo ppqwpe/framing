@@ -303,7 +303,7 @@ atexit.register(Scratch.clear)
 
 def open_externally(path: Path) -> bool:
     """기본 프로그램으로 연다. 안 되면 조용히 False — 경로는 어차피 로그에 남는다."""
-    quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    quiet = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     try:
         if sys.platform.startswith("win"):
             os.startfile(str(path))                    # type: ignore[attr-defined]

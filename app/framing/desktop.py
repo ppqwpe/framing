@@ -99,7 +99,7 @@ class DesktopShortcut:
         try:
             done = subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-                capture_output=True, text=True)
+                capture_output=True, text=True, stdin=subprocess.DEVNULL)
         except OSError as exc:
             Console.warn(f"powershell 을 부르지 못했습니다: {exc}")
             return 1
@@ -174,9 +174,11 @@ class FramingApp:
         Electron 창(app/electron)이 이 프로세스를 띄운다. 주소는 한 줄로 알려 주고,
         창 쪽이 stdin 을 닫으면(창을 닫았거나 Electron 이 죽었으면) 같이 끝난다.
         """
+        pipe = self._take_stdin()
+
         def watch() -> None:
             try:
-                while sys.stdin.read(4096):
+                while pipe.read(4096):
                     pass
             except (OSError, ValueError):
                 pass
@@ -186,6 +188,29 @@ class FramingApp:
         print(f"FRAMING_URL={url}", flush=True)
         server.wait()
         return 0
+
+    @staticmethod
+    def _take_stdin():
+        """
+        Electron 이 물린 stdin 파이프를 감시 스레드만 쓰는 사본으로 옮기고, 표준 입력은 NUL 로 바꾼다.
+
+        그대로 두면 엔진이 띄우는 ffmpeg · ffprobe · RIFE 가 모두 그 파이프를 물려받는다. 감시 스레드가
+        그 파이프를 읽고 있는 동안 ffmpeg 이 마무리 단계에서 멈췄다 (11/06: MOV 목차를 못 써서 누크에서
+        1프레임 ERROR). 사본(os.dup)은 자식에게 넘어가지 않고, 자식은 NUL 을 받는다.
+        """
+        pipe = os.fdopen(os.dup(0), "rb", buffering=0)
+        null = os.open(os.devnull, os.O_RDONLY)
+        os.dup2(null, 0)
+        os.close(null)
+        sys.stdin = open(os.devnull, "r")
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                import msvcrt
+                ctypes.windll.kernel32.SetStdHandle(-10, msvcrt.get_osfhandle(0))   # STD_INPUT_HANDLE
+            except Exception:
+                pass
+        return pipe
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

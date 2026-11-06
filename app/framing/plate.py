@@ -332,7 +332,7 @@ class PlateExport:
         done = subprocess.run(
             [self._ffmpeg, "-v", "error", "-y", "-i", str(self._source),
              "-pix_fmt", pix_fmt, "-start_number", "0", str(spot / "%06d.png")],
-            capture_output=True, text=True, encoding="utf-8", errors="replace")
+            capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
         if done.returncode != 0:
             raise FramingError(f"프레임을 뽑지 못했습니다: {done.stderr.strip()[:200]}")
 
@@ -430,7 +430,7 @@ class RifeRunner:
         self._abort()
         process = subprocess.Popen(command, cwd=str(Path(self._program).resolve().parent),
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   text=True, encoding='utf-8', errors='replace')
+                                   text=True, encoding='utf-8', errors='replace', stdin=subprocess.DEVNULL)
         try:
             while True:
                 self._abort()
@@ -683,7 +683,7 @@ class StretchNote:
         said = subprocess.run(
             [ffprobe, "-v", "error", "-show_entries", "format_tags=comment",
              "-of", "default=nw=1:nk=1", str(movie)],
-            capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
+            capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL).stdout.strip()
         for tag in (StretchNote.TAG, *StretchNote.OLD_TAGS):
             if said.startswith(tag):
                 return said[len(tag):]
@@ -907,7 +907,7 @@ class HoldBuilder:
         done = subprocess.run(
             [self._ffmpeg, "-v", "error", "-y", "-i", str(self._source),
              "-pix_fmt", self._spec.read_pix_fmt, "-start_number", "0",
-             str(spread / "%06d.png")], capture_output=True, text=True, encoding="utf-8", errors="replace")
+             str(spread / "%06d.png")], capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
         if done.returncode != 0:
             raise FramingError(f"프레임을 뽑지 못했습니다: {done.stderr.strip()[:200]}")
         plate = sorted(spread.glob("*.png"))
@@ -967,7 +967,7 @@ class PlateRevert:
         done = subprocess.run(
             [self._ffmpeg, "-v", "error", "-y", "-i", str(self.movie),
              "-pix_fmt", self.note.spec.read_pix_fmt, "-start_number", "0",
-             str(spread / "%06d.png")], capture_output=True, text=True, encoding="utf-8", errors="replace")
+             str(spread / "%06d.png")], capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
         if done.returncode != 0:
             raise FramingError(f"프레임을 뽑지 못했습니다: {done.stderr.strip()[:200]}")
         frames = sorted(spread.glob("*.png"))

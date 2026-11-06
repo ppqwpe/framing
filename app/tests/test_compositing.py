@@ -25,35 +25,41 @@ class ElectronModeJobTests(unittest.TestCase):
     11/06: ffmpeg 이 그 stdin 을 물려받아 마무리 단계에서 멈췄고, MOV 에 목차가 없어 누크가 ERROR 를 냈다.
     """
 
-    def test_convert_finishes_with_stdin_pipe_open(self):
+    def test_jobs_finish_with_stdin_pipe_open(self):
         import json, re, time, urllib.request
         tmp = Path(tempfile.mkdtemp(prefix="framing_electron_job_"))
         engine = None
         try:
             src = tmp / "clip.mov"
             subprocess.run([FF.find("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i",
-                            "testsrc2=size=320x180:rate=24:duration=2", "-c:v", "libx264",
-                            "-pix_fmt", "yuv420p", str(src)], check=True)
+                            "testsrc2=size=320x180:rate=24:duration=2", "-c:v", "prores_ks", "-profile:v", "3",
+                            "-pix_fmt", "yuv422p10le", str(src)], check=True, stdin=subprocess.DEVNULL)
             env = dict(os.environ, FRAMING_MODE="electron", FRAMING_DETACHED="1", FRAMING_PORTABLE="1")
             engine = subprocess.Popen([sys.executable, str(APP / "main.py")], stdin=subprocess.PIPE,
                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
                                       text=True, encoding="utf-8", errors="replace")
             url = next(line.split("=", 1)[1].strip() for line in engine.stdout if line.startswith("FRAMING_URL="))
             token = re.search(r'__framingToken="([^"]+)"', urllib.request.urlopen(url).read().decode()).group(1)
-            body = json.dumps({"method": "run", "args": ["convert", [str(src)], {"convertTo": "nuke"}]}).encode()
-            urllib.request.urlopen(urllib.request.Request(url + "call", data=body, headers={
-                "Content-Type": "application/json", "X-Framing-Token": token, "Origin": url.rstrip("/")}))
-            made = tmp / "clip_nuke.mov"
-            deadline = time.time() + 40
-            frames = ""
-            while time.time() < deadline and not frames:
-                time.sleep(1)
-                if made.exists():
-                    frames = subprocess.run([FF.find("ffprobe"), "-v", "error", "-count_frames", "-select_streams", "v",
-                                             "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(made)],
-                                            capture_output=True, text=True).stdout.split()[:1]
-                    frames = frames[0] if frames else ""
-            self.assertEqual(frames, "48", "누크용 마스터가 끝나지 않았거나 깨졌습니다")
+
+            def run(job, options, made, frames):
+                body = json.dumps({"method": "run", "args": [job, [str(src)], options]}).encode()
+                urllib.request.urlopen(urllib.request.Request(url + "call", data=body, headers={
+                    "Content-Type": "application/json", "X-Framing-Token": token, "Origin": url.rstrip("/")}))
+                deadline, got = time.time() + 40, ""
+                while time.time() < deadline and got != str(frames):
+                    time.sleep(1)
+                    found = sorted(tmp.rglob(made))
+                    if found:
+                        out = subprocess.run([FF.find("ffprobe"), "-v", "error", "-count_frames", "-select_streams", "v",
+                                              "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(found[0])],
+                                             capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout.split()
+                        got = out[0] if out else ""
+                self.assertEqual(got, str(frames), f"{job}: 결과가 끝나지 않았거나 깨졌습니다")
+                time.sleep(1)                       # 작업 마무리(다음 작업 받을 준비)를 기다린다
+
+            run("convert", {"convertTo": "nuke"}, "clip_nuke.mov", 48)      # TranscodeJob → FFmpegTool
+            run("hold", {"targetFrames": 60}, "clip_hold.mov", 60)          # plate.py 의 프레임 뽑기 · 되묶기
+            run("reverse", {}, "clip_reversed.mov", 48)
         finally:
             if engine is not None:
                 engine.stdin.close()
@@ -62,6 +68,28 @@ class ElectronModeJobTests(unittest.TestCase):
                 except subprocess.TimeoutExpired:
                     engine.kill()
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+class ChildStdinTests(unittest.TestCase):
+    """엔진이 띄우는 모든 자식 프로세스는 stdin 을 명시적으로 받는다 (Electron 의 파이프를 물려주지 않는다)."""
+
+    def test_every_subprocess_call_sets_stdin(self):
+        import ast
+        loose = []
+        for path in sorted((APP / "framing").glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess"
+                        and node.func.attr in ("run", "Popen", "call", "check_output", "check_call")):
+                    names = {k.arg for k in node.keywords}
+                    spread = [ast.unparse(k.value) for k in node.keywords if k.arg is None]
+                    ok = bool({"stdin", "input"} & names) or (spread and all(
+                        "stdin" in path.read_text(encoding="utf-8").split(s.split(".")[-1] + " = ", 1)[-1][:120]
+                        for s in spread))
+                    if not ok:
+                        loose.append(f"{path.name}:{node.lineno}")
+        self.assertEqual(loose, [], "stdin 을 정하지 않은 자식 프로세스")
 
 
 class LocalStagingTests(unittest.TestCase):

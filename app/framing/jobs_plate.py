@@ -343,7 +343,7 @@ def _probe_plate(ffprobe: str, target: Path) -> str:
              '-count_frames', '-show_entries',
              'stream=codec_name,pix_fmt,width,height,r_frame_rate,nb_read_frames,'
              'color_primaries,color_transfer,color_space,color_range',
-             '-of', 'default=nw=1', str(target)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
+             '-of', 'default=nw=1', str(target)], capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL).stdout
     except OSError as exc:
         # 날것의 FileNotFoundError 가 그대로 올라가면 "메모 파일이 없나?" 하고
         # 엉뚱한 데를 보게 된다. 못 찾은 것이 무엇인지 이름을 적어 준다.

@@ -65,7 +65,7 @@ class Checkup:
             return '없음 (처음 쓸 때 받아 옵니다)'
         try:
             first = subprocess.run([spot, '-version'], capture_output=True,
-                                   text=True, timeout=10).stdout.splitlines()
+                                   text=True, timeout=10, stdin=subprocess.DEVNULL).stdout.splitlines()
             return f"{spot}\n              {first[0] if first else ''}"
         except Exception:
             return spot

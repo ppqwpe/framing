@@ -573,7 +573,7 @@ class FFmpegTool:
         Console.warn("ffmpeg 이 없습니다. 이 작업에는 ffmpeg 이 필요합니다.")
         if shutil.which("brew"):
             Console.info("Homebrew 가 있습니다. 설치를 시작합니다 (몇 분 걸립니다)")
-            subprocess.run(["brew", "install", "ffmpeg"], check=False)
+            subprocess.run(["brew", "install", "ffmpeg"], check=False, stdin=subprocess.DEVNULL)
             found = self._search("ffmpeg")
             if found:
                 Console.ok(f"준비됨: {found}")
@@ -648,7 +648,7 @@ class FFmpegTool:
             result = subprocess.run(
                 [tool, "-v", "quiet", "-print_format", "json",
                  "-show_format", "-show_streams", str(path)],
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120, stdin=subprocess.DEVNULL)
             data = json.loads(result.stdout or "{}")
         except Exception:
             return None

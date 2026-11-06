@@ -123,7 +123,7 @@ class Application:
             if sys.platform.startswith("win"):
                 os.startfile(str(folder))       # type: ignore[attr-defined]
             elif sys.platform == "darwin":
-                subprocess.run(["open", str(folder)], check=False)
+                subprocess.run(["open", str(folder)], check=False, stdin=subprocess.DEVNULL)
         except Exception:
             pass
 
@@ -143,7 +143,7 @@ class Reveal:
     방법은 여러 개를 순서대로 들고 있다가 되는 것이 나올 때까지 시도한다.
     """
 
-    QUIET = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
+    QUIET = {'stdin': subprocess.DEVNULL, 'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
 
     @staticmethod
     def pick() -> "Reveal":

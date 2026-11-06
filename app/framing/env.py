@@ -47,7 +47,7 @@ class Relauncher:
                 env=dict(os.environ, **{cls.DETACHED: "1"}),
                 close_fds=True,
                 creationflags=getattr(subprocess, "DETACHED_PROCESS", 0)
-                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0), stdin=subprocess.DEVNULL)
             return True
         except Exception:
             return False
@@ -147,7 +147,7 @@ class DependencyBootstrap:
             try:
                 completed = subprocess.run(
                     [sys.executable, "-m", "pip", "install",
-                     "--disable-pip-version-check", package, *extra])
+                     "--disable-pip-version-check", package, *extra], stdin=subprocess.DEVNULL)
             except OSError:
                 return False
             if completed.returncode == 0:
