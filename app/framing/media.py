@@ -353,6 +353,68 @@ class OutputColorTags:
         return args[:-1] + ["-vf", stamp, args[-1]]
 
 
+class LocalStaging:
+    """
+    네트워크 드라이브로 나가는 영상은 로컬 임시 폴더에서 다 만든 뒤 옮긴다.
+
+    MOV · MP4 는 끝까지 쓴 다음 앞으로 돌아가 헤더를 고쳐 쓴다. RaiDrive(SFTP) 같은 마운트에서는
+    그 마지막 되돌아 쓰기에서 ffmpeg 이 멈춰 버렸다 (재 봄: Z:\\ 에서 284MB 까지 쓰고 영영 대기,
+    누크에서는 1프레임짜리 깨진 파일). 로컬에서 끝내고 완성본만 옮기면 그런 일이 없다.
+    번호 붙은 시퀀스(%04d)는 한 장씩 차례로 쓰기만 해서 그대로 둔다.
+    """
+
+    def __init__(self, args: Sequence[str]) -> None:
+        self.args = list(args)
+        self.destination: Optional[Path] = None
+        self.temporary: Optional[Path] = None
+        out = self.args[-1] if self.args else ""
+        if out and "%" not in out and not out.startswith("-") and out not in ("-", "pipe:1") \
+                and self.remote(Path(out)):
+            self.destination = Path(out)
+            folder = Path(tempfile.mkdtemp(prefix="framing_stage_"))
+            self.temporary = folder / self.destination.name
+            self.args[-1] = str(self.temporary)
+
+    @staticmethod
+    def remote(path: Path) -> bool:
+        text = str(path)
+        if text.startswith(("\\\\", "//")):
+            return True
+        if sys.platform != "win32":
+            return False
+        drive = os.path.splitdrive(os.path.abspath(text))[0]
+        if not drive:
+            return False
+        try:
+            import ctypes
+            kind = ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(drive + "\\"))
+            return kind == 4                      # DRIVE_REMOTE
+        except Exception:
+            return False
+
+    @property
+    def active(self) -> bool:
+        return self.destination is not None
+
+    def blocked(self) -> bool:
+        """-n (덮어쓰지 않음) 인데 이미 있으면 ffmpeg 처럼 실패한다."""
+        return self.active and "-n" in self.args and self.destination.exists()
+
+    def finish(self, code: int) -> int:
+        if not self.active:
+            return code
+        try:
+            if code == 0 and self.temporary.exists():
+                Console.info(f"네트워크 드라이브라 로컬에서 만든 뒤 옮깁니다 → {self.destination.name}")
+                shutil.move(str(self.temporary), str(self.destination))
+        except OSError as exc:
+            Console.warn(f"결과를 옮기지 못했습니다: {exc}")
+            code = 1
+        finally:
+            shutil.rmtree(self.temporary.parent, ignore_errors=True)
+        return code
+
+
 class FFmpegTool:
     """ffmpeg / ffprobe 를 찾고, 없으면 (윈도우에 한해) 내려받아 옆에 둔다."""
 
@@ -644,7 +706,14 @@ class FFmpegTool:
         긴 인코딩에서 화면이 멈춘 것처럼 보이지 않게 하려는 것.
         """
         binary = self.ensure()
-        args = OutputColorTags.fold(args)
+        staging = LocalStaging(OutputColorTags.fold(args))
+        if staging.blocked():
+            self._last_error = f"이미 있습니다: {staging.destination}"
+            return 1
+        return staging.finish(self._dispatch(binary, staging.args, quiet, total_seconds))
+
+    def _dispatch(self, binary: str, args: Sequence[str], quiet: bool,
+                  total_seconds: float) -> int:
         if total_seconds and total_seconds > 0:
             return self._run_with_progress(binary, args, quiet, total_seconds)
         if quiet:
@@ -657,7 +726,8 @@ class FFmpegTool:
         command = [binary, "-hide_banner", "-loglevel", "error",
                    "-stats" if show_stats else "-nostats"]
         command += list(args)
-        process = subprocess.Popen(command)
+        # stdin 은 넘겨주지 않는다 — Electron 이 엔진에 물린 파이프를 ffmpeg 이 같이 읽으면 안 된다
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL)
         self._active = process
         try:
             process.wait()
@@ -673,7 +743,7 @@ class FFmpegTool:
     def _run_quiet(self, binary: str, args: Sequence[str]) -> int:
         """화면은 조용히, 오류 메시지는 손에 쥔 채로."""
         command = [binary, "-hide_banner", "-loglevel", "error", "-nostats", *args]
-        process = subprocess.Popen(command, stdout=subprocess.DEVNULL,
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                    stderr=subprocess.PIPE, text=True,
                                    errors="replace")
         self._active = process
@@ -693,7 +763,7 @@ class FFmpegTool:
         # the encoder. A temporary file drains diagnostics without a second thread.
         self._last_error = ""
         with tempfile.TemporaryFile(mode="w+b") as diagnostics:
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, text=True,
+            process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True,
                                        encoding="utf-8", errors="replace", bufsize=1,
                                        stderr=diagnostics)
             self._active = process

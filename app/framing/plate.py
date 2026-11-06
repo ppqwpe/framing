@@ -17,7 +17,7 @@ from .errors import FramingError
 from .env import cv2
 from .util import Console, FrameRate, ImageIO
 from .retime import RetimeTimeline
-from .media import FFmpegTool, OutputColorTags
+from .media import FFmpegTool, LocalStaging, OutputColorTags
 
 
 """A durable retime package with complete frames and per-frame provenance."""
@@ -32,8 +32,11 @@ def rebind(ffmpeg: str, args: Sequence[str], source: str) -> subprocess.Complete
     stamped = OutputColorTags.fold(list(args))
     if info and info.timecode:
         stamped = stamped[:-1] + info.timecode_args() + stamped[-1:]
-    return subprocess.run([ffmpeg, *stamped], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
+    staging = LocalStaging(stamped)               # 네트워크 드라이브면 로컬에서 만든 뒤 옮긴다
+    done = subprocess.run([ffmpeg, *staging.args], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
+    done.returncode = staging.finish(done.returncode)
+    return done
 
 
 class RetimeBundle:

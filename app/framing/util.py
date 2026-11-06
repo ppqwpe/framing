@@ -121,7 +121,7 @@ class FFImage:
             return ""
         out = subprocess.run([probe, "-v", "error", "-select_streams", "v:0",
                               "-show_entries", "stream=pix_fmt", "-of", "csv=p=0", str(path)],
-                             capture_output=True, text=True, errors="replace")
+                             stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace")
         return (out.stdout or "").strip().splitlines()[0] if out.stdout.strip() else ""
 
     @classmethod
@@ -141,7 +141,7 @@ class FFImage:
         else:
             want = "rgba64le" if alpha else "rgb48le"
         out = subprocess.run([ffmpeg, "-v", "error", "-i", str(path), "-frames:v", "1",
-                              "-f", "rawvideo", "-pix_fmt", want, "-"], capture_output=True)
+                              "-f", "rawvideo", "-pix_fmt", want, "-"], stdin=subprocess.DEVNULL, capture_output=True)
         size = cls._size(path)
         if out.returncode or not out.stdout or not size:
             return None
@@ -163,7 +163,7 @@ class FFImage:
         probe = cls._tool("ffprobe")
         out = subprocess.run([probe, "-v", "error", "-select_streams", "v:0", "-show_entries",
                               "stream=width,height", "-of", "csv=p=0:s=x", str(path)],
-                             capture_output=True, text=True, errors="replace")
+                             stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace")
         try:
             w, h = (out.stdout or "").strip().splitlines()[0].split("x")[:2]
             return int(w), int(h)

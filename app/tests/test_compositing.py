@@ -18,6 +18,38 @@ FF = FFmpegTool()
 HAVE_FF = bool(FF.find("ffmpeg") and FF.find("ffprobe"))
 
 
+class LocalStagingTests(unittest.TestCase):
+    """네트워크 드라이브(RaiDrive SFTP 등)로 나가는 영상은 로컬에서 만든 뒤 옮긴다."""
+
+    def test_unc_output_is_staged_locally(self):
+        from framing.media import LocalStaging
+        staging = LocalStaging(["-i", "a.mov", "-c:v", "prores_ks", r"\\nas\share\out.mov"])
+        self.assertTrue(staging.active)
+        self.assertEqual(staging.destination, Path(r"\\nas\share\out.mov"))
+        self.assertNotEqual(staging.args[-1], r"\\nas\share\out.mov")
+        self.assertEqual(Path(staging.args[-1]).name, "out.mov")
+        staging.finish(1)                               # 실패면 아무것도 옮기지 않고 임시 폴더만 치운다
+        self.assertFalse(Path(staging.args[-1]).parent.exists())
+
+    def test_local_and_sequence_outputs_are_left_alone(self):
+        from framing.media import LocalStaging
+        local = Path(tempfile.gettempdir()) / "out.mov"
+        self.assertFalse(LocalStaging(["-i", "a.mov", str(local)]).active)
+        self.assertFalse(LocalStaging(["-i", "a.mov", r"\\nas\share\seq.%04d.exr"]).active)
+
+    def test_finish_moves_the_finished_file(self):
+        from framing.media import LocalStaging
+        tmp = Path(tempfile.mkdtemp(prefix="framing_stage_test_"))
+        try:
+            staging = LocalStaging(["-i", "a.mov", r"\\nas\share\out.mov"])
+            staging.destination = tmp / "out.mov"       # 실제 공유 대신 로컬 자리로
+            Path(staging.args[-1]).write_bytes(b"movie")
+            self.assertEqual(staging.finish(0), 0)
+            self.assertEqual((tmp / "out.mov").read_bytes(), b"movie")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 class OutputColorTagsTests(unittest.TestCase):
     def test_flags_after_input_become_setparams_on_existing_chain(self):
         out = OutputColorTags.fold(["-y", "-i", "a.%04d.png", "-vf", "scale=out_range=tv", "-c:v", "prores_ks",
