@@ -357,9 +357,9 @@ class LocalStaging:
     """
     네트워크 드라이브로 나가는 영상은 로컬 임시 폴더에서 다 만든 뒤 옮긴다.
 
-    MOV · MP4 는 끝까지 쓴 다음 앞으로 돌아가 헤더를 고쳐 쓴다. RaiDrive(SFTP) 같은 마운트에서는
-    그 마지막 되돌아 쓰기에서 ffmpeg 이 멈춰 버렸다 (재 봄: Z:\\ 에서 284MB 까지 쓰고 영영 대기,
-    누크에서는 1프레임짜리 깨진 파일). 로컬에서 끝내고 완성본만 옮기면 그런 일이 없다.
+    MOV · MP4 는 끝까지 쓴 다음 앞으로 돌아가 헤더를 고쳐 쓴다. RaiDrive(SFTP) 같은 마운트는 이런
+    되돌아 쓰기와, 다른 프로그램이 반쯤 쓴 파일을 읽는 일에 약하다. 로컬에서 끝내고 완성본만 옮긴다.
+    (11/06 "284MB 에서 멈춤" 의 원인은 이게 아니라 stdin 이었다 — _dispatch 의 stdin 주석 참고.)
     번호 붙은 시퀀스(%04d)는 한 장씩 차례로 쓰기만 해서 그대로 둔다.
     """
 
@@ -726,7 +726,9 @@ class FFmpegTool:
         command = [binary, "-hide_banner", "-loglevel", "error",
                    "-stats" if show_stats else "-nostats"]
         command += list(args)
-        # stdin 은 넘겨주지 않는다 — Electron 이 엔진에 물린 파이프를 ffmpeg 이 같이 읽으면 안 된다
+        # stdin 은 넘겨주지 않는다 (아래 두 곳도 같다). Electron 창이 엔진에 물린 파이프를 ffmpeg 이
+        # 물려받으면, 엔진의 감시 스레드가 그 파이프를 읽는 동안 ffmpeg 이 마무리 단계에서 멈춘다
+        # (재 봄: MOV 목차를 못 써서 누크에서 1프레임 ERROR). 로컬 · 네트워크 드라이브를 가리지 않았다.
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL)
         self._active = process
         try:

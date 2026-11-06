@@ -1,6 +1,6 @@
 """합성(누크) 작업자 기준 점검: 색 표기 · EXR 선형 곡선 · 시퀀스 이름 · 타임코드 · 소리 비트 깊이"""
 from pathlib import Path
-import shutil, subprocess, sys, tempfile, unittest
+import os, shutil, subprocess, sys, tempfile, unittest
 
 APP = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(APP))
@@ -16,6 +16,52 @@ from framing.util import ImageIO  # noqa: E402
 
 FF = FFmpegTool()
 HAVE_FF = bool(FF.find("ffmpeg") and FF.find("ffprobe"))
+
+
+@unittest.skipUnless(HAVE_FF, "ffmpeg 이 없습니다")
+class ElectronModeJobTests(unittest.TestCase):
+    """
+    Electron 창처럼 엔진을 띄우고(stdin 파이프를 열어 둔 채) 누크용 마스터를 만든다.
+    11/06: ffmpeg 이 그 stdin 을 물려받아 마무리 단계에서 멈췄고, MOV 에 목차가 없어 누크가 ERROR 를 냈다.
+    """
+
+    def test_convert_finishes_with_stdin_pipe_open(self):
+        import json, re, time, urllib.request
+        tmp = Path(tempfile.mkdtemp(prefix="framing_electron_job_"))
+        engine = None
+        try:
+            src = tmp / "clip.mov"
+            subprocess.run([FF.find("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i",
+                            "testsrc2=size=320x180:rate=24:duration=2", "-c:v", "libx264",
+                            "-pix_fmt", "yuv420p", str(src)], check=True)
+            env = dict(os.environ, FRAMING_MODE="electron", FRAMING_DETACHED="1", FRAMING_PORTABLE="1")
+            engine = subprocess.Popen([sys.executable, str(APP / "main.py")], stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
+                                      text=True, encoding="utf-8", errors="replace")
+            url = next(line.split("=", 1)[1].strip() for line in engine.stdout if line.startswith("FRAMING_URL="))
+            token = re.search(r'__framingToken="([^"]+)"', urllib.request.urlopen(url).read().decode()).group(1)
+            body = json.dumps({"method": "run", "args": ["convert", [str(src)], {"convertTo": "nuke"}]}).encode()
+            urllib.request.urlopen(urllib.request.Request(url + "call", data=body, headers={
+                "Content-Type": "application/json", "X-Framing-Token": token, "Origin": url.rstrip("/")}))
+            made = tmp / "clip_nuke.mov"
+            deadline = time.time() + 40
+            frames = ""
+            while time.time() < deadline and not frames:
+                time.sleep(1)
+                if made.exists():
+                    frames = subprocess.run([FF.find("ffprobe"), "-v", "error", "-count_frames", "-select_streams", "v",
+                                             "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(made)],
+                                            capture_output=True, text=True).stdout.split()[:1]
+                    frames = frames[0] if frames else ""
+            self.assertEqual(frames, "48", "누크용 마스터가 끝나지 않았거나 깨졌습니다")
+        finally:
+            if engine is not None:
+                engine.stdin.close()
+                try:
+                    engine.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    engine.kill()
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 class LocalStagingTests(unittest.TestCase):
