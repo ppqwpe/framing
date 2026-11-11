@@ -798,11 +798,3 @@ class FFmpegTool:
             elif not quiet and self._last_error:
                 Console.warn(self._last_error)
             return process.returncode
-
-
-# ══════════════════════════════════════════════════ 작업 공통
-
-
-# ══════════════════════════════════════════════════ 1. 프레임 3장
-
-

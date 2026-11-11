@@ -190,7 +190,6 @@ class CompareBurner:
              size: tuple[int, int] = (0, 0), seconds: float = 0.0,
              video: bool = True, fps: float = 24.0, region=None,
              output: str = '', frame=None, audio=None, swapped=False) -> Optional[Path]:
-        import math
         width, height = size
         output = output or ('video' if video else 'frame')
         fit = (f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=bicubic,"

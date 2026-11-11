@@ -1,6 +1,6 @@
 """Real FFmpeg coverage for comparison audio, video and proxy output."""
 from pathlib import Path
-import sys,types,unittest,tempfile,subprocess,json,shutil
+import sys,unittest,tempfile,subprocess,json
 import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from framing import core as m

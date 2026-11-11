@@ -210,7 +210,3 @@ os.environ.setdefault("OPENCV_LOG_LEVEL", "SILENT")
 
 cv2 = DependencyBootstrap("cv2", OPENCV_PACKAGES).ensure()
 np = DependencyBootstrap("numpy", ("numpy",)).ensure()
-
-
-# ══════════════════════════════════════════════════ 공용 유틸
-

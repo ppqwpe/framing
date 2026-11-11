@@ -396,7 +396,7 @@ class RenameHistory:
     def undo(self) -> list:
         with self._lock:
             if not self._undo: raise FramingError('되돌릴 이름 변경이 없습니다.')
-            for current, original, stamp in self._undo:
+            for current, _original, stamp in self._undo:
                 if not current.is_file() or self.stamp(current) != stamp:
                     raise FramingError(f'{current.name} 파일이 바뀌었습니다. 되돌리기를 중단했습니다.')
             done = RenameTransaction([(current, original) for current, original, _ in self._undo]).execute()

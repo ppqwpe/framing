@@ -1,6 +1,6 @@
 """Release compatibility and boundary checks. Run next to Framing.bat and its baseline JSON."""
 from pathlib import Path
-import dataclasses,json,sys,types,unittest,tempfile,subprocess,shutil,re,os
+import dataclasses,json,sys,unittest,tempfile,subprocess,shutil,re,os
 HERE=Path(__file__).resolve().parent
 LAUNCHER=Path(__file__).resolve().parents[2]/'Framing.bat'
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))

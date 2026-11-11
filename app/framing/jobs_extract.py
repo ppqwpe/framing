@@ -156,7 +156,7 @@ class ExtractJob(Job):
         grabbed, exact = self._upgrade(target, grabbed, profile)
         fix = self._level_plan(profile, grabbed[0][1], already_fixed=exact)
 
-        for order, (pick, frame, index) in enumerate(grabbed, 1):
+        for order, (pick, frame, _index) in enumerate(grabbed, 1):
             if fix:
                 frame = LevelExpander.apply(frame)
             stem = folder / f"{target.stem}_{order:02d}_{pick.label}"
@@ -395,7 +395,3 @@ DELIVERY_CHOICES: tuple[type[Delivery], ...] = (
     AutoDelivery, Mp4Delivery, ProResDelivery,
     SequenceDelivery, SequenceAndVideoDelivery, BundleDelivery)
 DELIVERY_BY_KEY = {cls.KEY: cls for cls in DELIVERY_CHOICES}
-
-
-# ══════════════════════════════════════════════════ 3. 역재생
-

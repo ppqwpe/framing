@@ -542,7 +542,6 @@ class PlateAssemble:
     def mux(self, frames_dir: Path, destination: Path,
             note: Optional["StretchNote"] = None) -> Path:
         """플레이트와 같은 코덱·계조·색 표기로 되묶는다. 쪽지는 파일 안에 심는다."""
-        frames = sorted(Path(frames_dir).glob("*.png"))
         done = rebind(self._ffmpeg,
             ["-v", "error", "-y", "-framerate", FrameRate.from_value(self.spec.fps).text,
              "-start_number", "0", "-i", str(Path(frames_dir) / "%06d.png"),

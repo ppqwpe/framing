@@ -1,5 +1,5 @@
 from pathlib import Path
-import sys,types,json,shutil,subprocess,hashlib,tempfile
+import sys,tempfile
 ROOT=Path(tempfile.gettempdir())/'framing_regression'
 (ROOT/'work').mkdir(parents=True,exist_ok=True)
 def load_app():
@@ -7,7 +7,7 @@ def load_app():
     from framing import core as module
     return module
 
-import unittest,tempfile,contextlib,io
+import unittest,tempfile
 import numpy as np
 m=load_app()
 class RegressionTests(unittest.TestCase):

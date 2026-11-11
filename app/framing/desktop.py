@@ -260,9 +260,8 @@ class Startup:
         if request.wants_cli:
             return CommandLine(request.args).run()         # 작업 이름이나 옵션이 있으면 터미널 도구로
 
-        # 앱으로 구운 판(.exe · .app)은 필요한 것을 이미 안고 있다. 챙길 것도,
-        # 콘솔을 떼려고 자기를 다시 띄울 것도 없다 — 하면 오히려 두 번 뜬다.
-        # 앱으로 구운 판과 포터블 판(Framing.bat · 내장 파이썬)은 챙길 것을 이미 다 안고 있다
+        # 앱으로 구운 판(.exe · .app)과 포터블 판(Framing.bat · 내장 파이썬)은 필요한 것을 이미 안고 있다.
+        # 챙길 것도, 콘솔을 떼려고 자기를 다시 띄울 것도 없다 — 하면 오히려 두 번 뜬다.
         if not getattr(sys, "frozen", False) and not os.environ.get("FRAMING_PORTABLE"):
             cls.wizard().ensure()               # 처음이면 여기서 다 챙긴다 (콘솔에 보이게)
             if Relauncher.detach_console():

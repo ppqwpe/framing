@@ -6,7 +6,6 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Callable, Optional, Sequence
-from typing import TYPE_CHECKING
 
 from . import env
 from .errors import FramingError
@@ -16,9 +15,6 @@ from .media import FFmpegTool
 from .job import Job
 from .registry import JOB_REGISTRY
 from .cli import TargetCollector, WorkPlan
-
-if TYPE_CHECKING:   # 타입 표기에만 쓰는 이름
-    from .api import Api
 
 
 class Application:
@@ -127,11 +123,6 @@ class Application:
         except Exception:
             pass
 
-
-# ══════════════════════════════════════════════════ CLI
-
-
-# ══════════════════════════════════════════════════ 5. 창구
 
 # ══════════════════════════════════════════════════ 바깥 세상과의 접점
 
@@ -270,12 +261,3 @@ class FolderOpener:
         except OSError:
             pass
         return None
-
-
-
-
-# ══════════════════════════════════════════════════ 엔진 다리
-
-
-# ══════════════════════════════════════════════════ 화면이 부르는 함수들
-

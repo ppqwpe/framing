@@ -268,7 +268,3 @@ class ReverseJob(Job):
                           "-an", str(destination)])
         finally:
             shutil.rmtree(workspace, ignore_errors=True)
-
-
-# ══════════════════════════════════════════════════ 5~7. 변환 · 압축
-

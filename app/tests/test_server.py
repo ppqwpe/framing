@@ -1,10 +1,10 @@
-import ast,json,re,threading,unittest,urllib.request,urllib.error
+import ast,json,re,unittest,urllib.request,urllib.error
 from pathlib import Path
-from typing import Optional,Callable
+from typing import Optional
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from framing.errors import FramingError
-from framing.server import LocalRequestPolicy, ApiDispatcher, HttpByteRange, LocalServer, EventBus
+from framing.server import LocalRequestPolicy, ApiDispatcher, HttpByteRange, LocalServer
 from framing.desktop import UiDocument
 from framing.jobs_retime import RetimeEngineFactory
 t=ast.parse((Path(__file__).resolve().parents[1]/'framing'/'desktop.py').read_text(encoding='utf-8'))
@@ -100,7 +100,6 @@ class EngineTests(unittest.TestCase):
   node=next(n for n in t.body if isinstance(n,ast.ClassDef) and n.name=='DesktopShortcut')
   namespace={'Path':Path,'Optional':Optional,'SELF':"C:/O'Neil/Framing.bat"}
   exec(compile(ast.Module(body=[node],type_ignores=[]),'<shortcut>','exec'),namespace)
-  import inspect
   method=next(n for n in node.body if isinstance(n,ast.FunctionDef) and n.name=='_windows')
   expression=next(n.value for n in method.body if isinstance(n,ast.Assign) and any(isinstance(a,ast.Name) and a.id=='script' for a in n.targets))
   env={'link':Path("C:/O'Neil/Framing.lnk"),'launcher':Path("C:/O'Neil/Framing.bat"),'icon':Path("C:/O'Neil/icon.ico")}

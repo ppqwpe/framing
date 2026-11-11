@@ -1,6 +1,6 @@
 """SHOTKIT 시절에 만든 리타임 메모 · 영상 안 늘림 메모 · 작업 파일을 Framing 이 그대로 읽는지"""
 from pathlib import Path
-import shutil, subprocess, sys, tempfile, types, unittest
+import shutil, subprocess, sys, tempfile, unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from framing import core as m

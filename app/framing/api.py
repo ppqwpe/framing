@@ -614,7 +614,6 @@ class Api:
 
             with EngineBridge(self._emit):
                 for order, unit in enumerate(units, 1):
-                    target = unit[0]
                     if self._stop.is_set():
                         self._emit('log', {'kind': 'warn', 'text': '중단했습니다.'})
                         break
@@ -658,7 +657,3 @@ class Api:
                           'cancelled': self._stop.is_set(), 'dirs': sorted(set(started['dirs']))}
             if emit_done: self._emit('done', completion)
         return completion
-
-
-# ══════════════════════════════════════════════════ 브라우저 모드
-
